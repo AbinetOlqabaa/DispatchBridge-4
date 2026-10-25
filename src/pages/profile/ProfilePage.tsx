@@ -418,7 +418,6 @@ export function ProfilePage() {
       <PhoneVerificationModal
         isOpen={isPhoneModalOpen}
         onClose={() => setIsPhoneModalOpen(false)}
-        phoneNumber={phoneNumber}
         onSuccess={() => {
           setIsPhoneModalOpen(false);
           window.location.reload();

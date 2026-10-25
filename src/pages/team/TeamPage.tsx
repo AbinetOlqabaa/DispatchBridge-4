@@ -118,7 +118,7 @@ export function TeamPage() {
       setAcceptSubmitting(true);
       setAcceptMessage(null);
       const res = await api.acceptInvitation(acceptToken.trim());
-      setAcceptMessage(`Successfully joined ${res.businessName} as ${res.role}!`);
+      setAcceptMessage(`Successfully joined ${res.user.businessName} as ${res.user.role}!`);
       setAcceptToken('');
       setTimeout(() => {
         setIsAcceptModalOpen(false);

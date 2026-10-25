@@ -1527,6 +1527,68 @@ async function runTestSuite() {
   });
 
   // -------------------------------------------------------------------------
+  // Layer 7: Team Invitations, Role Governance & Executive Analytics Tests
+  // -------------------------------------------------------------------------
+  await test('Governance & Analytics', 'Team Invitations & Cryptographic Token Acceptance Workflow', async () => {
+    // 1. Business Owner creates invitation for new team member
+    const invite = await sandboxStore.createInvitation(
+      {
+        businessId: 'biz_apex_supply',
+        inviteeEmail: 'carlos.operations@apexsupply.com',
+        inviteePhone: '+1-555-019-7722',
+        proposedRole: 'SENDER',
+      },
+      ownerUser
+    );
+
+    assert(Boolean(invite.id), 'Invitation created with unique ID');
+    assertEqual(invite.businessId, 'biz_apex_supply', 'Invitation bound to tenant');
+    assertEqual(invite.proposedRole, 'SENDER', 'Proposed role set to SENDER');
+    assertEqual(invite.status, 'PENDING', 'Initial invitation status is PENDING');
+    assert(invite.token.startsWith('inv_tok_'), 'Cryptographically random token generated');
+
+    // 2. Fetch business invitations list
+    const invitationsList = await sandboxStore.getBusinessInvitations('biz_apex_supply');
+    assert(invitationsList.some((i) => i.id === invite.id), 'Invitation listed in active invitations');
+
+    // 3. Authenticated user redeems token
+    const acceptResult = await sandboxStore.acceptInvitation(invite.token, receiverUser);
+    assert(acceptResult.success, 'Invitation accepted successfully');
+    assertEqual(acceptResult.membership.businessId, 'biz_apex_supply', 'User received active membership in business');
+    assertEqual(acceptResult.user.businessId, 'biz_apex_supply', 'Active business context switched to new business');
+    assertEqual(acceptResult.user.role, 'SENDER', 'User role updated according to invitation');
+
+    // 4. Update member role
+    const updatedMember = await sandboxStore.updateMemberRole('biz_apex_supply', receiverUser.id, 'BUSINESS_OWNER', ownerUser);
+    assertEqual(updatedMember.role, 'BUSINESS_OWNER', 'Member promoted to BUSINESS_OWNER');
+
+    // 5. Verify audit log entry
+    const audits = await sandboxStore.getAuditLogs({ businessId: 'biz_apex_supply' });
+    assert(audits.some((a) => a.action === 'TEAM_MEMBER_INVITED'), 'Audit log contains TEAM_MEMBER_INVITED');
+    assert(audits.some((a) => a.action === 'TEAM_INVITATION_ACCEPTED'), 'Audit log contains TEAM_INVITATION_ACCEPTED');
+  });
+
+  await test('Governance & Analytics', 'Executive Performance & Reconciliation Analytics Report Engine', async () => {
+    const report = await sandboxStore.getAnalyticsReport('biz_apex_supply', ownerUser);
+
+    assert(Boolean(report.summary), 'Report contains executive summary metrics');
+    assert(report.summary.totalDispatches >= 1, 'Total dispatches calculated');
+    assert(typeof report.summary.deliverySuccessRate === 'number', 'Delivery success rate is a number');
+    assert(typeof report.summary.totalCargoValue === 'number', 'Total cargo value calculated');
+
+    assert(Boolean(report.discrepancyBreakdown), 'Report contains discrepancy root cause breakdown');
+    assert(typeof report.discrepancyBreakdown.shortage === 'number', 'Shortage metric present');
+    assert(typeof report.discrepancyBreakdown.damaged === 'number', 'Damaged metric present');
+
+    assert(Array.isArray(report.partnerPerformance), 'Partner performance scorecard is an array');
+    if (report.partnerPerformance.length > 0) {
+      const partner = report.partnerPerformance[0];
+      assert(Boolean(partner.partnerName), 'Partner scorecard includes partner name');
+      assert(typeof partner.successRate === 'number', 'Partner scorecard includes success rate');
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // Summary
   // -------------------------------------------------------------------------
   console.log('\n========================================================================');
