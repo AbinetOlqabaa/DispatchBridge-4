@@ -32,38 +32,4 @@ router.post(
   }
 );
 
-// Update partner
-router.put(
-  '/:id',
-  authenticate,
-  requireRole('BUSINESS_OWNER', 'SUPER_ADMIN'),
-  async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-      const updated = await sandboxStore.updatePartner(id, req.body, user);
-      res.json(updated);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message || 'Failed to update partner.' });
-    }
-  }
-);
-
-// Delete / de-activate partner
-router.delete(
-  '/:id',
-  authenticate,
-  requireRole('BUSINESS_OWNER', 'SUPER_ADMIN'),
-  async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-      const result = await sandboxStore.deletePartner(id, user);
-      res.json(result);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message || 'Failed to delete partner.' });
-    }
-  }
-);
-
 export default router;

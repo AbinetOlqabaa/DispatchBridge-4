@@ -50,38 +50,4 @@ router.post(
   }
 );
 
-// Update origin location
-router.put(
-  '/:id',
-  authenticate,
-  requireRole('BUSINESS_OWNER', 'SENDER', 'SUPER_ADMIN'),
-  async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-      const updated = await sandboxStore.updateLocation(id, req.body, user);
-      res.json(updated);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message || 'Failed to update location.' });
-    }
-  }
-);
-
-// Delete origin location
-router.delete(
-  '/:id',
-  authenticate,
-  requireRole('BUSINESS_OWNER', 'SUPER_ADMIN'),
-  async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      const { id } = req.params;
-      const result = await sandboxStore.deleteLocation(id, user);
-      res.json(result);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message || 'Failed to delete location.' });
-    }
-  }
-);
-
 export default router;

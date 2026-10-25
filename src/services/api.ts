@@ -1,7 +1,7 @@
 import {
   AuditLogEntry,
+  Business,
   Dispatch,
-  Invitation,
   Location,
   NotificationItem,
   Partner,
@@ -102,13 +102,176 @@ class ApiService {
   }
 
   // Auth Endpoints
-  async login(email: string, password: string): Promise<{ token: string; user: User }> {
+  async login(identifier: string, password: string): Promise<{ token: string; user: User }> {
     const data = await this.request<{ token: string; user: User }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     });
     this.setSession(data.token, data.user);
     return data;
+  }
+
+  async loginWithMobile(phoneNumber: string, password: string): Promise<{ token: string; user: User }> {
+    const data = await this.request<{ token: string; user: User }>('/api/auth/login-mobile', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber, password }),
+    });
+    this.setSession(data.token, data.user);
+    return data;
+  }
+
+  async initiateRegistration(payload: {
+    role: UserRole;
+    name: string;
+    phoneNumber: string;
+    countryDialCode?: string;
+    fan: string;
+    fin: string;
+    businessName: string;
+    password: string;
+    partnerId?: string;
+  }): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+    maskedFan: string;
+    maskedFin: string;
+  }> {
+    return this.request('/api/auth/register/initiate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async completeRegistration(challengeId: string, otpCode: string): Promise<{ token: string; user: User }> {
+    const data = await this.request<{ token: string; user: User }>('/api/auth/register/complete', {
+      method: 'POST',
+      body: JSON.stringify({ challengeId, otpCode }),
+    });
+    this.setSession(data.token, data.user);
+    return data;
+  }
+
+  async initiateIdentityPasswordReset(payload: {
+    phoneNumber: string;
+    fan: string;
+    fin: string;
+    countryDialCode?: string;
+  }): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+  }> {
+    return this.request('/api/auth/password-reset/initiate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async completeIdentityPasswordReset(
+    challengeId: string,
+    otpCode: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/auth/password-reset/complete', {
+      method: 'POST',
+      body: JSON.stringify({ challengeId, otpCode, newPassword }),
+    });
+  }
+
+  async initiatePasswordChangeOtp(): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+  }> {
+    return this.request('/api/auth/password-change/initiate-otp', {
+      method: 'POST',
+    });
+  }
+
+  async changePasswordWithOtp(
+    currentPassword: string,
+    newPassword: string,
+    challengeId: string,
+    otpCode: string
+  ): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/auth/password-change', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, challengeId, otpCode }),
+    });
+  }
+
+  async updateProfile(data: { name?: string; avatarUrl?: string }): Promise<User> {
+    const res = await this.request<{ user: User }>('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    this.user = res.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    return res.user;
+  }
+
+  async removeProfilePhoto(): Promise<User> {
+    const res = await this.request<{ user: User }>('/api/auth/profile/photo', {
+      method: 'DELETE',
+    });
+    this.user = res.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    return res.user;
+  }
+
+  // Admin User Management Endpoints
+  async adminGetUsers(params?: {
+    search?: string;
+    role?: UserRole;
+    status?: 'ACTIVE' | 'SUSPENDED';
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    users: User[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.role) query.set('role', params.role);
+    if (params?.status) query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+
+    const qs = query.toString();
+    return this.request(`/api/admin/users${qs ? `?${qs}` : ''}`);
+  }
+
+  async adminSuspendUser(userId: string, reason: string): Promise<{ user: User; message: string }> {
+    return this.request(`/api/admin/users/${userId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async adminReactivateUser(userId: string): Promise<{ user: User; message: string }> {
+    return this.request(`/api/admin/users/${userId}/reactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async adminUpdateUserRole(userId: string, role: UserRole, businessId?: string): Promise<{ user: User; message: string }> {
+    return this.request(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role, businessId }),
+    });
   }
 
   async register(payload: {
@@ -143,6 +306,23 @@ class ApiService {
     this.user = res.user;
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     return res.user;
+  }
+
+  async createBusiness(payload: {
+    name: string;
+    registrationNumber?: string;
+    countryCode?: string;
+    contactEmail: string;
+    contactPhone: string;
+    address: string;
+  }): Promise<{ business: Business; user: User }> {
+    const res = await this.request<{ business: Business; user: User }>('/api/auth/create-business', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    this.user = res.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    return res;
   }
 
   async requestPasswordReset(email: string): Promise<{ success: boolean; resetTokenPreview?: string }> {
@@ -234,6 +414,23 @@ class ApiService {
     });
   }
 
+  async updateDispatchTelemetry(
+    id: string,
+    telemetry: {
+      latitude: number;
+      longitude: number;
+      speedKmh?: number;
+      heading?: number;
+      checkpointName?: string;
+      source?: 'GPS' | 'DRIVER_SCAN' | 'CHECKPOINT' | 'SIMULATION';
+    }
+  ): Promise<Dispatch> {
+    return this.request(`/api/dispatches/${id}/telemetry`, {
+      method: 'POST',
+      body: JSON.stringify(telemetry),
+    });
+  }
+
   async recordReceipt(
     id: string,
     payload: {
@@ -256,6 +453,34 @@ class ApiService {
   ): Promise<Dispatch> {
     const key = payload.idempotencyKey || `idem_rcpt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     return this.request(`/api/dispatches/${id}/reconcile`, {
+      method: 'POST',
+      headers: { 'X-Idempotency-Key': key },
+      body: JSON.stringify({ ...payload, idempotencyKey: key }),
+    });
+  }
+
+  async recordPublicReceipt(
+    shareToken: string,
+    payload: {
+      lines: Array<{
+        id: string;
+        quantityReceived: number;
+        condition: string;
+        discrepancyType?: string;
+        notes?: string;
+        evidence?: any[];
+      }>;
+      signoff: {
+        signerName: string;
+        signerRole: string;
+        comments?: string;
+        signatureSvgOrBase64?: string;
+      };
+      idempotencyKey?: string;
+    }
+  ): Promise<Dispatch> {
+    const key = payload.idempotencyKey || `idem_pub_rcpt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    return this.request(`/api/dispatches/public/${shareToken}/reconcile`, {
       method: 'POST',
       headers: { 'X-Idempotency-Key': key },
       body: JSON.stringify({ ...payload, idempotencyKey: key }),
@@ -355,105 +580,6 @@ class ApiService {
   // Audit Logs
   async getAuditLogs(): Promise<AuditLogEntry[]> {
     return this.request('/api/audit');
-  }
-
-  // Partners mutations
-  async updatePartner(id: string, payload: Partial<Partner>): Promise<Partner> {
-    return this.request(`/api/partners/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async deletePartner(id: string): Promise<{ success: boolean }> {
-    return this.request(`/api/partners/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Locations mutations
-  async updateLocation(id: string, payload: Partial<Location>): Promise<Location> {
-    return this.request(`/api/locations/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async deleteLocation(id: string): Promise<{ success: boolean }> {
-    return this.request(`/api/locations/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Profile & Password settings
-  async updateProfile(payload: { name?: string; phoneNumber?: string }): Promise<{ user: User }> {
-    const res = await this.request<{ user: User }>('/api/auth/profile', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    if (res.user) {
-      this.user = res.user;
-      localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-    }
-    return res;
-  }
-
-  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    return this.request('/api/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-  }
-
-  // Team & Memberships
-  async getMembersAndInvitations(): Promise<{
-    businessId: string;
-    members: Array<User & { membershipRole: UserRole; membershipStatus: string; membershipCreatedAt: string }>;
-    invitations: Invitation[];
-  }> {
-    return this.request('/api/memberships');
-  }
-
-  async inviteMember(payload: {
-    inviteeEmail: string;
-    inviteePhone?: string;
-    proposedRole: UserRole;
-  }): Promise<Invitation> {
-    return this.request('/api/memberships/invite', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async revokeInvitation(id: string): Promise<{ success: boolean }> {
-    return this.request(`/api/memberships/invitations/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async acceptInvitation(token: string): Promise<{ success: boolean; businessId: string; businessName: string; role: UserRole }> {
-    return this.request('/api/memberships/accept', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-    });
-  }
-
-  async updateMemberRole(userId: string, role: UserRole): Promise<User> {
-    return this.request(`/api/memberships/${userId}/role`, {
-      method: 'PUT',
-      body: JSON.stringify({ role }),
-    });
-  }
-
-  async removeMember(userId: string): Promise<{ success: boolean }> {
-    return this.request(`/api/memberships/${userId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Executive Reports
-  async getAnalyticsReport(): Promise<any> {
-    return this.request('/api/reports/analytics');
   }
 
   // System Diagnostics & Staging Verification

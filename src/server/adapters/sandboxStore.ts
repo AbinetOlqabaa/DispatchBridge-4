@@ -6,9 +6,9 @@ import {
   Dispatch,
   DispatchLine,
   DispatchStatus,
-  Invitation,
   ItemCondition,
   Location,
+  Membership,
   NotificationItem,
   Partner,
   SystemStatusInfo,
@@ -27,6 +27,16 @@ import {
   verifySessionToken,
 } from '../security.js';
 import { AuthSession, IAuthAdapter, IDatabaseAdapter, INotificationAdapter } from '../types.js';
+import {
+  faydaAdapter,
+  maskFan,
+  maskFin,
+  maskPhoneNumber,
+  validateFanFormat,
+  validateFinFormat,
+} from './faydaAdapter.js';
+import { otpAdapter } from './otpAdapter.js';
+import { normalizeToE164, isValidE164 } from '../../utils/phoneUtils.js';
 
 // Pre-seeded Businesses
 const businesses: Business[] = [
@@ -53,6 +63,18 @@ const businesses: Business[] = [
     status: 'ACTIVE',
     ownerUserIds: ['usr_receiver_metro'],
     createdAt: '2026-02-10T09:30:00.000Z',
+  },
+  {
+    id: 'biz_midwest_coldchain',
+    name: 'Midwest Cold-Chain Express',
+    registrationNumber: 'REG-992144-US',
+    countryCode: 'US',
+    contactEmail: 'express@midwestcoldchain.com',
+    contactPhone: '+1-555-019-3388',
+    address: '900 Frostbite Parkway, Cold Terminal 2, Des Moines, IA',
+    status: 'ACTIVE',
+    ownerUserIds: ['usr_business_owner'],
+    createdAt: '2026-02-15T08:00:00.000Z',
   },
 ];
 
@@ -96,6 +118,19 @@ const locations: Location[] = [
     latitude: 44.9778,
     longitude: -93.2650,
     createdAt: '2026-02-10T10:00:00.000Z',
+  },
+  {
+    id: 'loc_midwest_cold',
+    businessId: 'biz_midwest_coldchain',
+    label: 'Des Moines Cold Storage - Bay 1',
+    addressLines: '900 Frostbite Parkway, Bay 1',
+    city: 'Des Moines',
+    region: 'IA',
+    countryCode: 'US',
+    isDefault: true,
+    latitude: 41.5900,
+    longitude: -93.6100,
+    createdAt: '2026-02-15T08:00:00.000Z',
   },
 ];
 
@@ -168,11 +203,21 @@ const users: Array<User & { passwordHash: string }> = [
     email: 'owner@apexsupply.com',
     passwordHash: 'Password123!',
     name: 'Eleanor Vance',
-    phoneNumber: '+1-555-019-2831',
+    fullName: 'Eleanor Vance',
+    phoneNumber: '+15550192831',
+    maskedPhone: '+1 555 •••• 31',
     phoneVerified: true,
+    phoneVerifiedAt: '2026-01-15T08:00:00.000Z',
     role: 'BUSINESS_OWNER',
     businessId: 'biz_apex_supply',
     businessName: 'Apex Supply Logistics',
+    fan: '1111222233334444',
+    fin: '111122223333',
+    maskedFan: '•••• •••• •••• 4444',
+    maskedFin: '•••• •••• 3333',
+    faydaStatus: 'SIMULATED_VERIFIED',
+    faydaVerifiedAt: '2026-01-15T08:00:00.000Z',
+    faydaVerificationMethod: 'FAYDA_DEV_SIMULATOR',
     status: 'ACTIVE',
     memberships: [
       {
@@ -184,6 +229,15 @@ const users: Array<User & { passwordHash: string }> = [
         status: 'ACTIVE',
         createdAt: '2026-01-15T08:00:00.000Z',
       },
+      {
+        id: 'mem_001_midwest',
+        userId: 'usr_business_owner',
+        businessId: 'biz_midwest_coldchain',
+        businessName: 'Midwest Cold-Chain Express',
+        role: 'BUSINESS_OWNER',
+        status: 'ACTIVE',
+        createdAt: '2026-02-15T08:00:00.000Z',
+      },
     ],
     createdAt: '2026-01-15T08:00:00.000Z',
     updatedAt: '2026-01-15T08:00:00.000Z',
@@ -194,11 +248,21 @@ const users: Array<User & { passwordHash: string }> = [
     email: 'dispatcher@apexsupply.com',
     passwordHash: 'Password123!',
     name: 'Carlos Ruiz',
-    phoneNumber: '+1-555-019-5572',
+    fullName: 'Carlos Ruiz',
+    phoneNumber: '+15550195572',
+    maskedPhone: '+1 555 •••• 72',
     phoneVerified: true,
+    phoneVerifiedAt: '2026-02-01T08:30:00.000Z',
     role: 'SENDER',
     businessId: 'biz_apex_supply',
     businessName: 'Apex Supply Logistics',
+    fan: '2222333344445555',
+    fin: '222233334444',
+    maskedFan: '•••• •••• •••• 5555',
+    maskedFin: '•••• •••• 4444',
+    faydaStatus: 'SIMULATED_VERIFIED',
+    faydaVerifiedAt: '2026-02-01T08:30:00.000Z',
+    faydaVerificationMethod: 'FAYDA_DEV_SIMULATOR',
     status: 'ACTIVE',
     memberships: [
       {
@@ -220,12 +284,22 @@ const users: Array<User & { passwordHash: string }> = [
     email: 'store@metroretail.com',
     passwordHash: 'Password123!',
     name: 'David Miller',
-    phoneNumber: '+1-555-014-4411',
+    fullName: 'David Miller',
+    phoneNumber: '+15550144411',
+    maskedPhone: '+1 555 •••• 11',
     phoneVerified: true,
+    phoneVerifiedAt: '2026-02-11T10:00:00.000Z',
     role: 'RECEIVER',
     businessId: 'biz_metro_retail',
     businessName: 'Metro Retail Distribution',
     partnerId: 'part_metro_north',
+    fan: '3333444455556666',
+    fin: '333344445555',
+    maskedFan: '•••• •••• •••• 6666',
+    maskedFin: '•••• •••• 5555',
+    faydaStatus: 'SIMULATED_VERIFIED',
+    faydaVerifiedAt: '2026-02-11T10:00:00.000Z',
+    faydaVerificationMethod: 'FAYDA_DEV_SIMULATOR',
     status: 'ACTIVE',
     memberships: [
       {
@@ -247,11 +321,21 @@ const users: Array<User & { passwordHash: string }> = [
     email: 'admin@dispatchbridge.internal',
     passwordHash: 'Password123!',
     name: 'System Administrator (Initial Seed)',
-    phoneNumber: '+1-555-010-0001',
+    fullName: 'System Administrator (Initial Seed)',
+    phoneNumber: '+15550100001',
+    maskedPhone: '+1 555 •••• 01',
     phoneVerified: true,
+    phoneVerifiedAt: '2026-01-01T00:00:00.000Z',
     role: 'SUPER_ADMIN',
     businessId: 'biz_platform',
     businessName: 'DispatchBridge Platform Engine',
+    fan: '9999888877776666',
+    fin: '999988887777',
+    maskedFan: '•••• •••• •••• 6666',
+    maskedFin: '•••• •••• 7777',
+    faydaStatus: 'SIMULATED_VERIFIED',
+    faydaVerifiedAt: '2026-01-01T00:00:00.000Z',
+    faydaVerificationMethod: 'FAYDA_DEV_SIMULATOR',
     status: 'ACTIVE',
     memberships: [
       {
@@ -317,24 +401,6 @@ const notifications: NotificationItem[] = [
   },
 ];
 
-// Pre-seeded Team Invitations
-const invitations: Invitation[] = [
-  {
-    id: 'inv_seed_001',
-    businessId: 'biz_apex_supply',
-    businessName: 'Apex Supply Logistics',
-    inviteeEmail: 'dispatch_lead@apexsupply.com',
-    inviteePhone: '+1-555-019-3344',
-    proposedRole: 'SENDER',
-    token: 'inv_tok_seed_77492a',
-    status: 'PENDING',
-    invitedByUserId: 'usr_business_owner',
-    invitedByName: 'Eleanor Vance',
-    expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-    createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
-  },
-];
-
 // Pre-seeded Dispatches across lifecycle states
 const dispatches: Dispatch[] = [
   {
@@ -350,12 +416,46 @@ const dispatches: Dispatch[] = [
       locationId: 'loc_apex_main',
       label: 'Chicago Central Terminal - Dock 4',
       address: '104 Logistics Blvd, Dock 4, Chicago, IL',
+      latitude: 41.8781,
+      longitude: -87.6298,
     },
     destinationSnapshot: {
       partnerName: 'Metro Retail North Branch',
       contactPerson: 'David Miller (Receiving Manager)',
       phone: '+1-555-014-4411',
       address: '800 Commerce Avenue, Dock 12, Minneapolis, MN',
+      latitude: 44.9866,
+      longitude: -93.2581,
+    },
+    currentCoordinates: {
+      latitude: 43.8014,
+      longitude: -91.2396,
+      updatedAt: '2026-10-21T09:30:00.000Z',
+      speedKmh: 84,
+      heading: 315,
+      checkpointName: 'I-90 Westbound Mile Marker 274 (La Crosse Waypoint)',
+      source: 'GPS',
+    },
+    pathHistory: {
+      plannedWaypoints: [
+        { id: 'wp_p0', latitude: 41.8781, longitude: -87.6298, label: 'Chicago Central Dock 4 (Origin)', passed: true },
+        { id: 'wp_p1', latitude: 42.2711, longitude: -89.0940, label: 'Rockford Gateway I-90', passed: true },
+        { id: 'wp_p2', latitude: 43.0731, longitude: -89.4012, label: 'Madison Freight Interchange', passed: true },
+        { id: 'wp_p3', latitude: 43.6275, longitude: -89.7709, label: 'Wisconsin Dells Weigh Station', passed: true },
+        { id: 'wp_p4', latitude: 43.9844, longitude: -90.5043, label: 'Tomah I-90/I-94 Split', passed: true },
+        { id: 'wp_p5', latitude: 43.8014, longitude: -91.2396, label: 'La Crosse Mississippi Checkpoint', passed: true },
+        { id: 'wp_p6', latitude: 44.0121, longitude: -92.4802, label: 'Rochester US-52 Corridor', passed: false },
+        { id: 'wp_p7', latitude: 44.7500, longitude: -92.9500, label: 'Hastings River Crossing', passed: false },
+        { id: 'wp_p8', latitude: 44.9866, longitude: -93.2581, label: 'Metro Retail North Dock 12 (Destination)', passed: false },
+      ],
+      actualWaypoints: [
+        { id: 'wp_a0', latitude: 41.8781, longitude: -87.6298, label: 'Chicago Dock Departure', timestamp: '2026-10-21T07:30:00.000Z', speedKmh: 0, passed: true },
+        { id: 'wp_a1', latitude: 42.2680, longitude: -89.0880, label: 'Rockford Tollway Pass', timestamp: '2026-10-21T08:15:00.000Z', speedKmh: 88, passed: true },
+        { id: 'wp_a2', latitude: 43.0780, longitude: -89.3950, label: 'Madison Rest Area Telemetry', timestamp: '2026-10-21T08:50:00.000Z', speedKmh: 82, passed: true },
+        { id: 'wp_a3', latitude: 43.9800, longitude: -90.5100, label: 'Tomah Scale Passed', timestamp: '2026-10-21T09:12:00.000Z', speedKmh: 79, passed: true },
+        { id: 'wp_a4', latitude: 43.8014, longitude: -91.2396, label: 'La Crosse Mile 274 Waypoint', timestamp: '2026-10-21T09:30:00.000Z', speedKmh: 84, passed: true },
+      ],
+      lastCachedAt: '2026-10-21T09:30:00.000Z',
     },
     status: 'VIEWED',
     shareToken: 'sh_a91b2c4d8e7f',
@@ -425,12 +525,25 @@ const dispatches: Dispatch[] = [
       locationId: 'loc_apex_main',
       label: 'Chicago Central Terminal - Dock 4',
       address: '104 Logistics Blvd, Dock 4, Chicago, IL',
+      latitude: 41.8781,
+      longitude: -87.6298,
     },
     destinationSnapshot: {
       partnerName: 'Metro Retail North Branch',
       contactPerson: 'David Miller (Receiving Manager)',
       phone: '+1-555-014-4411',
       address: '800 Commerce Avenue, Dock 12, Minneapolis, MN',
+      latitude: 44.9866,
+      longitude: -93.2581,
+    },
+    currentCoordinates: {
+      latitude: 44.9866,
+      longitude: -93.2581,
+      updatedAt: '2026-10-20T14:20:00.000Z',
+      speedKmh: 0,
+      heading: 0,
+      checkpointName: 'Minneapolis Receiving Dock 12 (Arrived & Inspected)',
+      source: 'CHECKPOINT',
     },
     status: 'PARTIALLY_RECEIVED',
     shareToken: 'sh_e83c7d6b1a09',
@@ -531,12 +644,25 @@ const dispatches: Dispatch[] = [
       locationId: 'loc_apex_main',
       label: 'Chicago Central Terminal - Dock 4',
       address: '104 Logistics Blvd, Dock 4, Chicago, IL',
+      latitude: 41.8781,
+      longitude: -87.6298,
     },
     destinationSnapshot: {
       partnerName: 'Summit Wholesale Depot',
       contactPerson: 'Sarah Jenkins',
       phone: '+1-555-017-3388',
       address: '2300 Prairie Parkway, Bay 4, Des Moines, IA',
+      latitude: 41.5868,
+      longitude: -93.6250,
+    },
+    currentCoordinates: {
+      latitude: 41.5868,
+      longitude: -93.6250,
+      updatedAt: '2026-10-18T13:40:00.000Z',
+      speedKmh: 0,
+      heading: 0,
+      checkpointName: 'Des Moines Bay 4 (Reconciled & Closed)',
+      source: 'CHECKPOINT',
     },
     status: 'RECONCILED',
     shareToken: 'sh_f12a34b56c78',
@@ -694,22 +820,32 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
   readonly providerName = 'Sandbox In-Memory / Dev State';
 
   // --- Auth Adapter ---
-  async login(email: string, password: string): Promise<AuthSession> {
-    const userRecord = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (!userRecord) {
-      throw new Error('Invalid email or password.');
+  async login(emailOrPhone: string, password: string): Promise<AuthSession> {
+    const input = emailOrPhone.trim();
+    let userRecord: (User & { passwordHash: string }) | undefined;
+
+    if (input.includes('@')) {
+      userRecord = users.find((u) => u.email.toLowerCase() === input.toLowerCase());
+    } else {
+      const normalized = normalizeToE164(input);
+      const digitsOnly = input.replace(/\D/g, '');
+      userRecord = users.find((u) => {
+        if (u.phoneNumber === normalized) return true;
+        if (u.phoneNumber.replace(/\D/g, '') === digitsOnly) return true;
+        return false;
+      });
     }
 
-    if (userRecord.passwordHash !== password) {
-      throw new Error('Invalid email or password.');
+    if (!userRecord || userRecord.passwordHash !== password) {
+      throw new Error('Invalid email, mobile number, or password.');
     }
 
     if (userRecord.status === 'SUSPENDED') {
-      throw new Error('Account suspended. Please contact platform administrator.');
+      throw new Error(userRecord.suspendedReason ? `Account suspended: ${userRecord.suspendedReason}` : 'Account suspended. Please contact platform administrator.');
     }
 
     userRecord.lastLoginAt = new Date().toISOString();
-    const { passwordHash, ...safeUser } = userRecord;
+    const { passwordHash, fan, fin, ...safeUser } = userRecord;
     const token = createSessionToken(safeUser.id, safeUser.role);
 
     await this.recordAudit({
@@ -720,7 +856,7 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
       action: 'USER_LOGIN',
       entityType: 'USER',
       entityId: safeUser.id,
-      details: `User ${safeUser.email} authenticated successfully.`,
+      details: `User ${safeUser.maskedPhone || safeUser.email} authenticated successfully.`,
     });
 
     return {
@@ -728,6 +864,669 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
       user: safeUser,
       expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
     };
+  }
+
+  async loginWithMobile(phoneNumber: string, password: string): Promise<AuthSession> {
+    const normalized = normalizeToE164(phoneNumber);
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+
+    const userRecord = users.find((u) => {
+      if (u.phoneNumber === normalized) return true;
+      if (u.phoneNumber.replace(/\D/g, '') === digitsOnly) return true;
+      return false;
+    });
+
+    if (!userRecord || userRecord.passwordHash !== password) {
+      throw new Error('Invalid mobile number or password.');
+    }
+
+    if (userRecord.status === 'SUSPENDED') {
+      throw new Error(userRecord.suspendedReason ? `Account suspended: ${userRecord.suspendedReason}` : 'Account suspended. Please contact platform administrator.');
+    }
+
+    userRecord.lastLoginAt = new Date().toISOString();
+    const { passwordHash, fan, fin, ...safeUser } = userRecord;
+    const token = createSessionToken(safeUser.id, safeUser.role);
+
+    await this.recordAudit({
+      actorId: safeUser.id,
+      actorName: safeUser.name,
+      actorRole: safeUser.role,
+      businessId: safeUser.businessId,
+      action: 'USER_LOGIN',
+      entityType: 'USER',
+      entityId: safeUser.id,
+      details: `User ${maskPhoneNumber(safeUser.phoneNumber)} authenticated via mobile number.`,
+    });
+
+    return {
+      token,
+      user: safeUser,
+      expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
+    };
+  }
+
+  async initiateRegistration(payload: {
+    role: UserRole;
+    name: string;
+    phoneNumber: string;
+    countryDialCode?: string;
+    fan: string;
+    fin: string;
+    businessName: string;
+    password: string;
+    email?: string;
+    partnerId?: string;
+  }): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+    maskedFan: string;
+    maskedFin: string;
+  }> {
+    // 1. Strict Server-Side Role Enforcement
+    if (payload.role === 'SUPER_ADMIN') {
+      throw new Error('Public registration as Super Administrator is strictly prohibited.');
+    }
+    const allowedRoles: UserRole[] = ['BUSINESS_OWNER', 'SENDER', 'RECEIVER'];
+    if (!allowedRoles.includes(payload.role)) {
+      throw new Error('Public registration allows BUSINESS_OWNER, SENDER, or RECEIVER roles only.');
+    }
+
+    // 2. Validate FAN & FIN Formats
+    const fanCheck = validateFanFormat(payload.fan);
+    if (!fanCheck.valid) {
+      throw new Error(fanCheck.error);
+    }
+    const finCheck = validateFinFormat(payload.fin);
+    if (!finCheck.valid) {
+      throw new Error(finCheck.error);
+    }
+
+    // 3. Normalize & Validate E.164 Mobile Phone
+    const normalizedPhone = normalizeToE164(payload.phoneNumber, payload.countryDialCode || '+251');
+    if (!isValidE164(normalizedPhone)) {
+      throw new Error('Invalid mobile phone number. Please provide a valid number in E.164 format.');
+    }
+
+    // 4. Validate Password Length
+    if (!payload.password || payload.password.length < 8) {
+      throw new Error('Password must be at least 8 characters long.');
+    }
+
+    if (!payload.name || !payload.businessName) {
+      throw new Error('Full Name and Business Name are required.');
+    }
+
+    // 5. Atomic Uniqueness Constraints
+    const cleanFan = payload.fan.trim();
+    const cleanFin = payload.fin.trim();
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
+
+    const phoneExists = users.some((u) => u.phoneNumber === normalizedPhone || u.phoneNumber.replace(/\D/g, '') === phoneDigits);
+    if (phoneExists) {
+      throw new Error('This mobile phone number is already registered or cannot be linked.');
+    }
+
+    const fanExists = users.some((u) => u.fan === cleanFan);
+    if (fanExists) {
+      throw new Error('An account linked to this FAN (Fayda Account Number) already exists.');
+    }
+
+    const finExists = users.some((u) => u.fin === cleanFin);
+    if (finExists) {
+      throw new Error('An account linked to this FIN (Fayda Identification Number) already exists.');
+    }
+
+    // 6. Invoke Fayda e-ID Verification Gateway
+    const faydaRes = await faydaAdapter.verifyIdentity({
+      fan: cleanFan,
+      fin: cleanFin,
+      fullName: payload.name.trim(),
+      phoneNumber: normalizedPhone,
+    });
+
+    if (!faydaRes.verified) {
+      throw new Error(faydaRes.error || 'Fayda national identity verification could not be completed.');
+    }
+
+    // 7. Dispatch Purpose-Bound OTP Challenge
+    const challenge = await otpAdapter.createChallenge(normalizedPhone, 'REGISTRATION', {
+      ...payload,
+      fan: cleanFan,
+      fin: cleanFin,
+      normalizedPhone,
+      faydaRes,
+    });
+
+    return {
+      challengeId: challenge.challengeId,
+      expiresInSeconds: challenge.expiresInSeconds,
+      resendAvailableAt: challenge.resendAvailableAt,
+      isSimulation: challenge.isSimulation,
+      simulatedCode: challenge.simulatedCode,
+      maskedPhone: maskPhoneNumber(normalizedPhone),
+      maskedFan: maskFan(cleanFan),
+      maskedFin: maskFin(cleanFin),
+    };
+  }
+
+  async completeRegistration(challengeId: string, otpCode: string): Promise<AuthSession> {
+    const otpRes = await otpAdapter.verifyCode(challengeId, otpCode);
+    if (!otpRes.success) {
+      throw new Error(otpRes.error || 'Invalid OTP code.');
+    }
+
+    const payload = otpRes.payload;
+    if (!payload) {
+      throw new Error('Registration payload not found in verified challenge.');
+    }
+
+    // Re-verify uniqueness constraints in transaction
+    const phoneExists = users.some((u) => u.phoneNumber === payload.normalizedPhone);
+    if (phoneExists) {
+      throw new Error('This mobile phone number is already registered.');
+    }
+    const fanExists = users.some((u) => u.fan === payload.fan);
+    if (fanExists) {
+      throw new Error('An account linked to this FAN already exists.');
+    }
+
+    const newUserId = 'usr_' + crypto.randomBytes(6).toString('hex');
+    const newBusinessId = 'biz_' + crypto.randomBytes(4).toString('hex');
+
+    const newBusiness: Business = {
+      id: newBusinessId,
+      name: payload.businessName.trim(),
+      countryCode: 'ET',
+      contactEmail: payload.email || `${newUserId}@dispatchbridge.local`,
+      contactPhone: payload.normalizedPhone,
+      address: 'Registered Commercial Facility',
+      status: 'ACTIVE',
+      ownerUserIds: [newUserId],
+      createdAt: new Date().toISOString(),
+    };
+    businesses.push(newBusiness);
+
+    // Create default origin location for newly formed business entity
+    locations.push({
+      id: 'loc_' + crypto.randomBytes(4).toString('hex'),
+      businessId: newBusinessId,
+      label: 'Main Commercial Terminal',
+      addressLines: 'Terminal Bay 1',
+      city: 'Addis Ababa',
+      region: 'Addis Ababa',
+      countryCode: 'ET',
+      isDefault: true,
+      latitude: 9.0192,
+      longitude: 38.7525,
+      createdAt: new Date().toISOString(),
+    });
+
+    const newUserRecord: User & { passwordHash: string } = {
+      id: newUserId,
+      email: payload.email || `${newUserId}@dispatchbridge.local`,
+      passwordHash: payload.password,
+      name: payload.name.trim(),
+      fullName: payload.name.trim(),
+      phoneNumber: payload.normalizedPhone,
+      maskedPhone: maskPhoneNumber(payload.normalizedPhone),
+      phoneVerified: true,
+      phoneVerifiedAt: new Date().toISOString(),
+      fan: payload.fan,
+      fin: payload.fin,
+      maskedFan: maskFan(payload.fan),
+      maskedFin: maskFin(payload.fin),
+      faydaStatus: payload.faydaRes?.isSimulation ? 'SIMULATED_VERIFIED' : 'VERIFIED',
+      faydaVerifiedAt: new Date().toISOString(),
+      faydaVerificationMethod: payload.faydaRes?.verificationMethod || 'FAYDA_DEV_SIMULATOR',
+      role: payload.role,
+      businessId: newBusinessId,
+      businessName: payload.businessName.trim(),
+      partnerId: payload.partnerId,
+      status: 'ACTIVE',
+      memberships: [
+        {
+          id: 'mem_' + crypto.randomBytes(4).toString('hex'),
+          userId: newUserId,
+          businessId: newBusinessId,
+          businessName: payload.businessName.trim(),
+          role: payload.role,
+          status: 'ACTIVE',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    users.push(newUserRecord);
+
+    const { passwordHash, fan, fin, ...safeUser } = newUserRecord;
+    const token = createSessionToken(safeUser.id, safeUser.role);
+
+    await this.recordAudit({
+      actorId: safeUser.id,
+      actorName: safeUser.name,
+      actorRole: safeUser.role,
+      businessId: safeUser.businessId,
+      action: 'USER_REGISTERED',
+      entityType: 'USER',
+      entityId: safeUser.id,
+      details: `User registered with verified mobile ${maskPhoneNumber(safeUser.phoneNumber)} and Fayda e-ID ${maskFan(newUserRecord.fan!)}.`,
+    });
+
+    return {
+      token,
+      user: safeUser,
+      expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
+    };
+  }
+
+  async initiatePasswordReset(
+    phoneOrData: string | { phoneNumber: string; fan: string; fin: string; countryDialCode?: string },
+    maybeFan?: string,
+    maybeFin?: string,
+    maybeCountryDialCode?: string
+  ): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+  }> {
+    let phoneNumber: string;
+    let fan: string;
+    let fin: string;
+    let countryDialCode: string | undefined;
+
+    if (typeof phoneOrData === 'object' && phoneOrData !== null) {
+      phoneNumber = phoneOrData.phoneNumber;
+      fan = phoneOrData.fan;
+      fin = phoneOrData.fin;
+      countryDialCode = phoneOrData.countryDialCode;
+    } else {
+      phoneNumber = phoneOrData;
+      fan = maybeFan || '';
+      fin = maybeFin || '';
+      countryDialCode = maybeCountryDialCode;
+    }
+
+    const normalizedPhone = normalizeToE164(phoneNumber, countryDialCode || '+251');
+    const fanCheck = validateFanFormat(fan);
+    if (!fanCheck.valid) throw new Error(fanCheck.error);
+    const finCheck = validateFinFormat(fin);
+    if (!finCheck.valid) throw new Error(finCheck.error);
+
+    const cleanFan = fan.trim();
+    const cleanFin = fin.trim();
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
+
+    const user = users.find((u) => {
+      const matchPhone = u.phoneNumber === normalizedPhone || u.phoneNumber.replace(/\D/g, '') === phoneDigits;
+      const matchFan = u.fan === cleanFan;
+      const matchFin = u.fin === cleanFin;
+      return matchPhone && matchFan && matchFin;
+    });
+
+    if (!user) {
+      throw new Error('Identity verification failed. Please verify your mobile number, FAN, and FIN.');
+    }
+
+    if (user.status === 'SUSPENDED') {
+      throw new Error('This account has been suspended. Please contact platform administration.');
+    }
+
+    const challenge = await otpAdapter.createChallenge(normalizedPhone, 'PASSWORD_RESET', {
+      userId: user.id,
+    });
+
+    return {
+      challengeId: challenge.challengeId,
+      expiresInSeconds: challenge.expiresInSeconds,
+      resendAvailableAt: challenge.resendAvailableAt,
+      isSimulation: challenge.isSimulation,
+      simulatedCode: challenge.simulatedCode,
+      maskedPhone: maskPhoneNumber(normalizedPhone),
+    };
+  }
+
+  async completePasswordReset(
+    challengeId: string,
+    otpCode: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    const otpRes = await otpAdapter.verifyCode(challengeId, otpCode);
+    if (!otpRes.success) {
+      throw new Error(otpRes.error || 'Invalid OTP code.');
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new Error('New password must be at least 8 characters long.');
+    }
+
+    const userId = otpRes.payload?.userId;
+    const user = users.find((u) => u.id === userId);
+    if (!user) {
+      throw new Error('User account not found.');
+    }
+
+    user.passwordHash = newPassword;
+    user.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      businessId: user.businessId,
+      action: 'PASSWORD_RESET_COMPLETED',
+      entityType: 'USER',
+      entityId: user.id,
+      details: `Password recovered and reset via verified mobile OTP for ${maskPhoneNumber(user.phoneNumber)}.`,
+    });
+
+    return { success: true, message: 'Password reset successfully. You may now sign in.' };
+  }
+
+  async initiatePasswordChangeOtp(userId: string): Promise<{
+    challengeId: string;
+    expiresInSeconds: number;
+    resendAvailableAt: number;
+    isSimulation: boolean;
+    simulatedCode?: string;
+    maskedPhone: string;
+  }> {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    const challenge = await otpAdapter.createChallenge(user.phoneNumber, 'PROFILE_CHANGE', { userId });
+    return {
+      challengeId: challenge.challengeId,
+      expiresInSeconds: challenge.expiresInSeconds,
+      resendAvailableAt: challenge.resendAvailableAt,
+      isSimulation: challenge.isSimulation,
+      simulatedCode: challenge.simulatedCode,
+      maskedPhone: maskPhoneNumber(user.phoneNumber),
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    challengeId: string,
+    otpCode: string
+  ): Promise<{ success: boolean; message: string }> {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    if (user.passwordHash !== currentPassword) {
+      throw new Error('Current password is incorrect or does not match.');
+    }
+
+    const otpRes = await otpAdapter.verifyCode(challengeId, otpCode);
+    if (!otpRes.success) {
+      throw new Error(otpRes.error || 'Invalid step-up OTP code.');
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new Error('New password must be at least 8 characters long.');
+    }
+
+    user.passwordHash = newPassword;
+    user.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      businessId: user.businessId,
+      action: 'PASSWORD_CHANGED',
+      entityType: 'USER',
+      entityId: user.id,
+      details: `User password successfully updated with step-up OTP verification.`,
+    });
+
+    return { success: true, message: 'Password updated successfully.' };
+  }
+
+  async updateProfile(
+    userId: string,
+    data: { name?: string; avatarUrl?: string; avatarDataUri?: string }
+  ): Promise<User> {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    const avatar = data.avatarUrl || data.avatarDataUri;
+    if (avatar) {
+      // Validate image data URL or URL
+      if (
+        !avatar.startsWith('data:image/jpeg') &&
+        !avatar.startsWith('data:image/png') &&
+        !avatar.startsWith('data:image/webp') &&
+        !avatar.startsWith('http://') &&
+        !avatar.startsWith('https://')
+      ) {
+        throw new Error('Avatar must be a valid image (JPEG, PNG, or WebP).');
+      }
+      // Check approximate 2MB file limit (2.8MB base64 string)
+      if (avatar.length > 2800000) {
+        throw new Error('Avatar file exceeds maximum size limit of 2MB.');
+      }
+      user.avatarUrl = avatar;
+    }
+
+    if (data.name && data.name.trim().length > 0) {
+      user.name = data.name.trim();
+      user.fullName = data.name.trim();
+    }
+
+    user.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      businessId: user.businessId,
+      action: 'USER_PROFILE_UPDATED',
+      entityType: 'USER',
+      entityId: user.id,
+      details: `User updated profile information.`,
+    });
+
+    const { passwordHash, fan, fin, ...safeUser } = user;
+    return safeUser;
+  }
+
+  async removeProfilePhoto(userId: string): Promise<User> {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    delete user.avatarUrl;
+    user.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      businessId: user.businessId,
+      action: 'PROFILE_PHOTO_REMOVED',
+      entityType: 'USER',
+      entityId: user.id,
+      details: `User removed profile picture.`,
+    });
+
+    const { passwordHash, fan, fin, ...safeUser } = user;
+    return safeUser;
+  }
+
+  // --- Administrator User Management (SUPER_ADMIN only) ---
+  async adminGetUsers(params: {
+    search?: string;
+    role?: UserRole;
+    status?: 'ACTIVE' | 'SUSPENDED';
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{
+    users: User[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    let safeList = users.map(({ passwordHash, fan, fin, ...safe }) => safe);
+
+    if (params.search) {
+      const q = params.search.toLowerCase().trim();
+      safeList = safeList.filter((u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.phoneNumber.toLowerCase().includes(q) ||
+        (u.maskedPhone && u.maskedPhone.toLowerCase().includes(q)) ||
+        (u.maskedFan && u.maskedFan.toLowerCase().includes(q)) ||
+        u.businessName.toLowerCase().includes(q)
+      );
+    }
+
+    if (params.role) {
+      safeList = safeList.filter((u) => u.role === params.role);
+    }
+
+    if (params.status) {
+      safeList = safeList.filter((u) => u.status === params.status);
+    }
+
+    const total = safeList.length;
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.max(1, Math.min(50, params.limit || 10));
+    const totalPages = Math.ceil(total / limit) || 1;
+    const start = (page - 1) * limit;
+    const paginated = safeList.slice(start, start + limit);
+
+    return {
+      users: paginated,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  async adminSuspendUser(adminUserId: string, targetUserId: string, reason: string): Promise<User> {
+    const admin = users.find((u) => u.id === adminUserId);
+    if (!admin || admin.role !== 'SUPER_ADMIN') {
+      throw new Error('Forbidden: Only Super Administrators can suspend users.');
+    }
+
+    const target = users.find((u) => u.id === targetUserId);
+    if (!target) throw new Error('Target user not found.');
+
+    // Lockout Protection: Prevent suspending the last remaining Super-Admin
+    if (target.role === 'SUPER_ADMIN') {
+      const activeSuperAdmins = users.filter((u) => u.role === 'SUPER_ADMIN' && u.status === 'ACTIVE');
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('Cannot suspend or demote the last remaining active Super Administrator.');
+      }
+    }
+
+    target.status = 'SUSPENDED';
+    target.suspendedReason = reason.trim() || 'Suspended by platform administrator.';
+    target.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: admin.id,
+      actorName: admin.name,
+      actorRole: admin.role,
+      businessId: admin.businessId,
+      action: 'ADMIN_USER_SUSPENDED',
+      entityType: 'USER',
+      entityId: target.id,
+      details: `Administrator suspended user ${target.name} (${maskPhoneNumber(target.phoneNumber)}). Reason: ${target.suspendedReason}`,
+    });
+
+    const { passwordHash, fan, fin, ...safeUser } = target;
+    return safeUser;
+  }
+
+  async adminReactivateUser(adminUserId: string, targetUserId: string): Promise<User> {
+    const admin = users.find((u) => u.id === adminUserId);
+    if (!admin || admin.role !== 'SUPER_ADMIN') {
+      throw new Error('Forbidden: Only Super Administrators can reactivate users.');
+    }
+
+    const target = users.find((u) => u.id === targetUserId);
+    if (!target) throw new Error('Target user not found.');
+
+    target.status = 'ACTIVE';
+    delete target.suspendedReason;
+    target.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: admin.id,
+      actorName: admin.name,
+      actorRole: admin.role,
+      businessId: admin.businessId,
+      action: 'ADMIN_USER_REACTIVATED',
+      entityType: 'USER',
+      entityId: target.id,
+      details: `Administrator reactivated user ${target.name} (${maskPhoneNumber(target.phoneNumber)}).`,
+    });
+
+    const { passwordHash, fan, fin, ...safeUser } = target;
+    return safeUser;
+  }
+
+  async adminUpdateUserRole(
+    adminUserId: string,
+    targetUserId: string,
+    newRole: UserRole,
+    businessId?: string
+  ): Promise<User> {
+    const admin = users.find((u) => u.id === adminUserId);
+    if (!admin || admin.role !== 'SUPER_ADMIN') {
+      throw new Error('Forbidden: Only Super Administrators can manage user roles.');
+    }
+
+    const target = users.find((u) => u.id === targetUserId);
+    if (!target) throw new Error('Target user not found.');
+
+    // Lockout Protection: Prevent demoting the last remaining active Super-Admin
+    if (target.role === 'SUPER_ADMIN' && newRole !== 'SUPER_ADMIN') {
+      const activeSuperAdmins = users.filter((u) => u.role === 'SUPER_ADMIN' && u.status === 'ACTIVE');
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('Cannot suspend or demote the last remaining active Super Administrator.');
+      }
+    }
+
+    const prevRole = target.role;
+    target.role = newRole;
+    if (businessId) {
+      target.businessId = businessId;
+      const mem = target.memberships.find((m) => m.businessId === businessId);
+      if (mem) {
+        mem.role = newRole;
+      }
+    }
+    target.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      actorId: admin.id,
+      actorName: admin.name,
+      actorRole: admin.role,
+      businessId: admin.businessId,
+      action: 'ADMIN_USER_ROLE_CHANGED',
+      entityType: 'USER',
+      entityId: target.id,
+      details: `Administrator changed role for ${target.name} from ${prevRole} to ${newRole}.`,
+    });
+
+    const { passwordHash, fan, fin, ...safeUser } = target;
+    return safeUser;
   }
 
   async register(payload: {
@@ -739,6 +1538,10 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
     role: UserRole;
     partnerId?: string;
   }): Promise<AuthSession> {
+    if (payload.role === 'SUPER_ADMIN') {
+      throw new Error('Public registration as Super Administrator is strictly prohibited.');
+    }
+
     const normalizedEmail = payload.email.toLowerCase().trim();
     if (users.some((u) => u.email.toLowerCase() === normalizedEmail)) {
       throw new Error('An account with this email address already exists.');
@@ -1020,6 +1823,66 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
     return safeUser;
   }
 
+  async createBusiness(
+    userId: string,
+    payload: {
+      name: string;
+      registrationNumber?: string;
+      countryCode?: string;
+      contactEmail: string;
+      contactPhone: string;
+      address: string;
+    }
+  ): Promise<{ business: Business; user: User }> {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found.');
+
+    const newBizId = `biz_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    const newBiz: Business = {
+      id: newBizId,
+      name: payload.name.trim(),
+      registrationNumber: payload.registrationNumber?.trim() || `REG-${Math.floor(100000 + Math.random() * 900000)}-US`,
+      countryCode: payload.countryCode || 'US',
+      contactEmail: payload.contactEmail.trim(),
+      contactPhone: payload.contactPhone.trim(),
+      address: payload.address.trim(),
+      status: 'ACTIVE',
+      ownerUserIds: [userId],
+      createdAt: new Date().toISOString(),
+    };
+
+    businesses.push(newBiz);
+
+    const newMem: Membership = {
+      id: `mem_${Date.now().toString(36)}`,
+      userId,
+      businessId: newBizId,
+      businessName: newBiz.name,
+      role: 'BUSINESS_OWNER',
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+    };
+
+    user.memberships.push(newMem);
+    user.businessId = newBiz.id;
+    user.businessName = newBiz.name;
+    user.role = 'BUSINESS_OWNER';
+    user.updatedAt = new Date().toISOString();
+
+    await this.recordAudit({
+      action: 'BUSINESS_CREATED',
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      entityType: 'BUSINESS',
+      entityId: newBiz.id,
+      details: `New business entity "${newBiz.name}" registered and activated by ${user.name}.`,
+    });
+
+    const { passwordHash, ...safeUser } = user;
+    return { business: newBiz, user: safeUser };
+  }
+
   // --- Database Adapter: Dispatches ---
   async getDispatches(filter?: {
     businessId?: string;
@@ -1121,16 +1984,25 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
       throw new Error('Selected receiving partner does not exist.');
     }
 
-    // Resolve Origin Location Snapshot
+    // Resolve Origin Location Snapshot & Coordinates
     let originLabel = payload.originLocationLabel;
     let originAddr = payload.originAddress;
+    let originLat = 41.8781;
+    let originLng = -87.6298;
     if (payload.originLocationId) {
       const loc = locations.find((l) => l.id === payload.originLocationId);
       if (loc) {
         originLabel = loc.label;
         originAddr = `${loc.addressLines}, ${loc.city}, ${loc.region}`;
+        if (loc.latitude !== undefined && loc.longitude !== undefined) {
+          originLat = loc.latitude;
+          originLng = loc.longitude;
+        }
       }
     }
+
+    const destLat = partner.latitude !== undefined ? partner.latitude : 44.9866;
+    const destLng = partner.longitude !== undefined ? partner.longitude : -93.2581;
 
     const nextId = 'dsp_' + crypto.randomBytes(4).toString('hex');
     const randomCode = Math.floor(1000 + Math.random() * 9000);
@@ -1164,12 +2036,25 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
         locationId: payload.originLocationId,
         label: originLabel,
         address: originAddr,
+        latitude: originLat,
+        longitude: originLng,
       },
       destinationSnapshot: {
         partnerName: partner.name,
         contactPerson: partner.contactPerson,
         phone: partner.phone,
         address: payload.destinationAddress || partner.deliveryAddress,
+        latitude: destLat,
+        longitude: destLng,
+      },
+      currentCoordinates: {
+        latitude: originLat,
+        longitude: originLng,
+        updatedAt: now,
+        speedKmh: 0,
+        heading: 0,
+        checkpointName: originLabel,
+        source: 'CHECKPOINT',
       },
       status: 'DISPATCHED',
       lines: dispatchLines,
@@ -2052,6 +2937,19 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
       });
     }
 
+    if ((payload as any).latitude !== undefined && (payload as any).longitude !== undefined) {
+      dispatch.currentCoordinates = {
+        latitude: Number((payload as any).latitude),
+        longitude: Number((payload as any).longitude),
+        updatedAt: now,
+        checkpointName: payload.checkpointLocation || 'Driver Waypoint Scan',
+        source: 'DRIVER_SCAN',
+      };
+    } else if (payload.checkpointLocation && dispatch.currentCoordinates) {
+      dispatch.currentCoordinates.checkpointName = payload.checkpointLocation;
+      dispatch.currentCoordinates.updatedAt = now;
+    }
+
     dispatch.version += 1;
     dispatch.updatedAt = now;
 
@@ -2073,6 +2971,76 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
         checkpointLocation: payload.checkpointLocation,
         driverNotes: payload.driverNotes,
         status: dispatch.status,
+      },
+    });
+
+    return JSON.parse(JSON.stringify(dispatch));
+  }
+
+  async updateDispatchTelemetry(
+    dispatchId: string,
+    telemetry: {
+      latitude: number;
+      longitude: number;
+      speedKmh?: number;
+      heading?: number;
+      checkpointName?: string;
+      source?: 'GPS' | 'DRIVER_SCAN' | 'CHECKPOINT' | 'SIMULATION';
+    },
+    actor?: User
+  ): Promise<Dispatch> {
+    const dispatch = dispatches.find((d) => d.id === dispatchId);
+    if (!dispatch) throw new Error('Dispatch not found.');
+
+    const now = new Date().toISOString();
+    dispatch.currentCoordinates = {
+      latitude: Number(telemetry.latitude),
+      longitude: Number(telemetry.longitude),
+      updatedAt: now,
+      speedKmh: telemetry.speedKmh !== undefined ? Number(telemetry.speedKmh) : 75,
+      heading: telemetry.heading !== undefined ? Number(telemetry.heading) : 310,
+      checkpointName: telemetry.checkpointName || 'En route waypoint',
+      source: telemetry.source || 'GPS',
+    };
+
+    if (!dispatch.pathHistory) {
+      dispatch.pathHistory = {
+        plannedWaypoints: [],
+        actualWaypoints: [],
+      };
+    }
+    dispatch.pathHistory.actualWaypoints.push({
+      id: `wp_a_${Date.now()}`,
+      latitude: Number(telemetry.latitude),
+      longitude: Number(telemetry.longitude),
+      label: telemetry.checkpointName || 'Waypoint Telemetry Ping',
+      timestamp: now,
+      speedKmh: telemetry.speedKmh !== undefined ? Number(telemetry.speedKmh) : 75,
+      passed: true,
+    });
+    dispatch.pathHistory.lastCachedAt = now;
+
+    if (dispatch.status === 'DISPATCHED' || dispatch.status === 'VIEWED') {
+      dispatch.status = 'IN_TRANSIT';
+    }
+
+    dispatch.version += 1;
+    dispatch.updatedAt = now;
+
+    await this.recordAudit({
+      actorId: actor?.id || 'telemetry_service',
+      actorName: actor?.name || dispatch.driverName || 'Telemetry GPS',
+      actorRole: actor?.role || 'SENDER',
+      businessId: dispatch.senderBusinessId,
+      action: 'TELEMETRY_UPDATED',
+      entityType: 'DISPATCH',
+      entityId: dispatch.id,
+      correlationId: dispatch.dispatchNumber,
+      details: `Telemetry geo-coordinates updated: ${telemetry.latitude.toFixed(5)}, ${telemetry.longitude.toFixed(5)} (${telemetry.checkpointName || 'Waypoint'}).`,
+      metadata: {
+        latitude: telemetry.latitude,
+        longitude: telemetry.longitude,
+        checkpoint: telemetry.checkpointName,
       },
     });
 
@@ -2174,521 +3142,6 @@ export class SandboxStore implements IAuthAdapter, IDatabaseAdapter, INotificati
       createdCount: created.length,
       dispatches: created,
       errors: errors.length > 0 ? errors : undefined,
-    };
-  }
-
-  // --- Team & Membership Management ---
-  async getBusinessMembers(businessId: string): Promise<Array<User & { membershipRole: UserRole; membershipStatus: string; membershipCreatedAt: string }>> {
-    const matchedUsers: Array<User & { membershipRole: UserRole; membershipStatus: string; membershipCreatedAt: string }> = [];
-    for (const u of users) {
-      const mem = u.memberships?.find((m) => m.businessId === businessId);
-      if (mem || (u.businessId === businessId && u.role !== 'SUPER_ADMIN')) {
-        const { passwordHash, ...safeUser } = u;
-        matchedUsers.push({
-          ...safeUser,
-          membershipRole: mem ? mem.role : u.role,
-          membershipStatus: mem ? mem.status : u.status,
-          membershipCreatedAt: mem ? mem.createdAt : u.createdAt,
-        });
-      }
-    }
-    return matchedUsers;
-  }
-
-  async getBusinessInvitations(businessId: string): Promise<Invitation[]> {
-    return invitations.filter((inv) => inv.businessId === businessId);
-  }
-
-  async createInvitation(
-    input: { businessId: string; inviteeEmail: string; inviteePhone?: string; proposedRole: UserRole },
-    actor: User
-  ): Promise<Invitation> {
-    if (actor.role !== 'BUSINESS_OWNER' && actor.role !== 'SUPER_ADMIN') {
-      throw new Error('Forbidden: Only Business Owners and Super Administrators can issue invitations.');
-    }
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== input.businessId) {
-      throw new Error('Forbidden: Cross-tenant invitation denied.');
-    }
-
-    const email = input.inviteeEmail.trim().toLowerCase();
-    const existingUser = users.find((u) => u.email.toLowerCase() === email);
-    if (existingUser && existingUser.memberships?.some((m) => m.businessId === input.businessId)) {
-      throw new Error(`User with email "${email}" is already a member of this business.`);
-    }
-
-    const pending = invitations.find(
-      (inv) => inv.businessId === input.businessId && inv.inviteeEmail.toLowerCase() === email && inv.status === 'PENDING'
-    );
-    if (pending) {
-      throw new Error(`An active pending invitation for "${email}" already exists.`);
-    }
-
-    const biz = businesses.find((b) => b.id === input.businessId);
-    const token = 'inv_tok_' + crypto.randomBytes(16).toString('hex');
-    const newInvitation: Invitation = {
-      id: 'inv_' + crypto.randomBytes(6).toString('hex'),
-      businessId: input.businessId,
-      businessName: biz?.name || actor.businessName || 'Business',
-      inviteeEmail: email,
-      inviteePhone: input.inviteePhone?.trim(),
-      proposedRole: input.proposedRole,
-      token,
-      status: 'PENDING',
-      invitedByUserId: actor.id,
-      invitedByName: actor.name,
-      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    invitations.push(newInvitation);
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: input.businessId,
-      action: 'INVITATION_CREATED',
-      entityType: 'BUSINESS',
-      entityId: input.businessId,
-      details: `Created invitation for ${email} with proposed role ${input.proposedRole}`,
-    });
-
-    await this.sendOutboundNotification({
-      channel: 'EMAIL',
-      recipient: email,
-      title: `Team Invitation from ${newInvitation.businessName}`,
-      message: `${actor.name} has invited you to join ${newInvitation.businessName} as a ${input.proposedRole}. Token: ${token}`,
-    });
-
-    return newInvitation;
-  }
-
-  async revokeInvitation(invitationId: string, actor: User): Promise<{ success: boolean }> {
-    const inv = invitations.find((i) => i.id === invitationId);
-    if (!inv) throw new Error('Invitation not found.');
-
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== inv.businessId) {
-      throw new Error('Forbidden: You can only revoke invitations for your own business.');
-    }
-
-    inv.status = 'REVOKED';
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: inv.businessId,
-      action: 'INVITATION_REVOKED',
-      entityType: 'BUSINESS',
-      entityId: inv.id,
-      details: `Revoked invitation for ${inv.inviteeEmail}`,
-    });
-
-    return { success: true };
-  }
-
-  async acceptInvitation(token: string, currentUser: User): Promise<{ success: boolean; businessId: string; businessName: string; role: UserRole }> {
-    const inv = invitations.find((i) => i.token === token && i.status === 'PENDING');
-    if (!inv) {
-      throw new Error('Invalid or expired invitation token.');
-    }
-
-    if (new Date(inv.expiresAt).getTime() < Date.now()) {
-      inv.status = 'EXPIRED';
-      throw new Error('This invitation has expired.');
-    }
-
-    const user = users.find((u) => u.id === currentUser.id);
-    if (!user) throw new Error('User not found.');
-
-    const existingMembership = user.memberships.find((m) => m.businessId === inv.businessId);
-    if (existingMembership) {
-      existingMembership.role = inv.proposedRole;
-      existingMembership.status = 'ACTIVE';
-    } else {
-      user.memberships.push({
-        id: 'mem_' + crypto.randomBytes(4).toString('hex'),
-        userId: user.id,
-        businessId: inv.businessId,
-        businessName: inv.businessName,
-        role: inv.proposedRole,
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    inv.status = 'ACCEPTED';
-    inv.acceptedAt = new Date().toISOString();
-
-    await this.recordAudit({
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: inv.proposedRole,
-      businessId: inv.businessId,
-      action: 'INVITATION_ACCEPTED',
-      entityType: 'USER',
-      entityId: user.id,
-      details: `${user.email} accepted invitation and joined ${inv.businessName} as ${inv.proposedRole}`,
-    });
-
-    return {
-      success: true,
-      businessId: inv.businessId,
-      businessName: inv.businessName,
-      role: inv.proposedRole,
-    };
-  }
-
-  async updateMemberRole(businessId: string, targetUserId: string, newRole: UserRole, actor: User): Promise<User> {
-    if (actor.role !== 'BUSINESS_OWNER' && actor.role !== 'SUPER_ADMIN') {
-      throw new Error('Forbidden: Only Business Owners can modify team roles.');
-    }
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== businessId) {
-      throw new Error('Forbidden: Cross-tenant role modification denied.');
-    }
-
-    const targetUser = users.find((u) => u.id === targetUserId);
-    if (!targetUser) throw new Error('Target user not found.');
-
-    const membership = targetUser.memberships.find((m) => m.businessId === businessId);
-    if (membership) {
-      membership.role = newRole;
-    }
-    if (targetUser.businessId === businessId) {
-      targetUser.role = newRole;
-    }
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId,
-      action: 'MEMBER_ROLE_UPDATED',
-      entityType: 'USER',
-      entityId: targetUserId,
-      details: `Updated role of ${targetUser.email} to ${newRole}`,
-    });
-
-    const { passwordHash, ...safeUser } = targetUser;
-    return safeUser;
-  }
-
-  async removeMember(businessId: string, targetUserId: string, actor: User): Promise<{ success: boolean }> {
-    if (actor.role !== 'BUSINESS_OWNER' && actor.role !== 'SUPER_ADMIN') {
-      throw new Error('Forbidden: Only Business Owners can remove team members.');
-    }
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== businessId) {
-      throw new Error('Forbidden: Cross-tenant member removal denied.');
-    }
-    if (actor.id === targetUserId) {
-      throw new Error('Cannot remove yourself from your own business.');
-    }
-
-    const targetUser = users.find((u) => u.id === targetUserId);
-    if (!targetUser) throw new Error('Target user not found.');
-
-    targetUser.memberships = targetUser.memberships.filter((m) => m.businessId !== businessId);
-
-    if (targetUser.businessId === businessId) {
-      if (targetUser.memberships.length > 0) {
-        targetUser.businessId = targetUser.memberships[0].businessId;
-        targetUser.businessName = targetUser.memberships[0].businessName;
-        targetUser.role = targetUser.memberships[0].role;
-      }
-    }
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId,
-      action: 'MEMBER_REMOVED',
-      entityType: 'USER',
-      entityId: targetUserId,
-      details: `Removed ${targetUser.email} from business ${businessId}`,
-    });
-
-    return { success: true };
-  }
-
-  // --- Partner & Location Mutations (CRUD) ---
-  async updatePartner(partnerId: string, input: Partial<Partner>, actor: User): Promise<Partner> {
-    const partner = partners.find((p) => p.id === partnerId);
-    if (!partner) throw new Error('Partner not found.');
-
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== partner.businessId) {
-      throw new Error('Forbidden: You can only update partners belonging to your business.');
-    }
-
-    if (input.name) partner.name = input.name.trim();
-    if (input.contactPerson) partner.contactPerson = input.contactPerson.trim();
-    if (input.email) partner.email = input.email.trim();
-    if (input.phone) partner.phone = input.phone.trim();
-    if (input.deliveryAddress) partner.deliveryAddress = input.deliveryAddress.trim();
-    if (input.city) partner.city = input.city.trim();
-    if (input.region) partner.region = input.region.trim();
-    if (input.type) partner.type = input.type;
-    if (input.notes !== undefined) partner.notes = input.notes;
-    if (input.latitude !== undefined) partner.latitude = input.latitude;
-    if (input.longitude !== undefined) partner.longitude = input.longitude;
-    if (input.status) partner.status = input.status;
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: partner.businessId,
-      action: 'PARTNER_UPDATED',
-      entityType: 'PARTNER',
-      entityId: partner.id,
-      details: `Updated partner ${partner.name}`,
-    });
-
-    return partner;
-  }
-
-  async deletePartner(partnerId: string, actor: User): Promise<{ success: boolean }> {
-    const partner = partners.find((p) => p.id === partnerId);
-    if (!partner) throw new Error('Partner not found.');
-
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== partner.businessId) {
-      throw new Error('Forbidden: You can only delete partners belonging to your business.');
-    }
-
-    partner.status = 'SUSPENDED';
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: partner.businessId,
-      action: 'PARTNER_DEACTIVATED',
-      entityType: 'PARTNER',
-      entityId: partner.id,
-      details: `Deactivated partner ${partner.name}`,
-    });
-
-    return { success: true };
-  }
-
-  async updateLocation(locationId: string, input: Partial<Location>, actor: User): Promise<Location> {
-    const location = locations.find((l) => l.id === locationId);
-    if (!location) throw new Error('Location not found.');
-
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== location.businessId) {
-      throw new Error('Forbidden: You can only update locations belonging to your business.');
-    }
-
-    if (input.label) location.label = input.label.trim();
-    if (input.addressLines) location.addressLines = input.addressLines.trim();
-    if (input.city) location.city = input.city.trim();
-    if (input.region !== undefined) location.region = input.region.trim();
-    if (input.latitude !== undefined) location.latitude = input.latitude;
-    if (input.longitude !== undefined) location.longitude = input.longitude;
-    if (input.isDefault !== undefined) location.isDefault = input.isDefault;
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: location.businessId,
-      action: 'LOCATION_UPDATED',
-      entityType: 'LOCATION',
-      entityId: location.id,
-      details: `Updated location ${location.label}`,
-    });
-
-    return location;
-  }
-
-  async deleteLocation(locationId: string, actor: User): Promise<{ success: boolean }> {
-    const locIdx = locations.findIndex((l) => l.id === locationId);
-    if (locIdx === -1) throw new Error('Location not found.');
-    const loc = locations[locIdx];
-
-    if (actor.role !== 'SUPER_ADMIN' && actor.businessId !== loc.businessId) {
-      throw new Error('Forbidden: You can only delete locations belonging to your business.');
-    }
-
-    locations.splice(locIdx, 1);
-
-    await this.recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorRole: actor.role,
-      businessId: loc.businessId,
-      action: 'LOCATION_DELETED',
-      entityType: 'LOCATION',
-      entityId: locationId,
-      details: `Deleted location ${loc.label}`,
-    });
-
-    return { success: true };
-  }
-
-  // --- Profile & Security Settings ---
-  async updateProfile(userId: string, input: { name?: string; phoneNumber?: string }): Promise<User> {
-    const user = users.find((u) => u.id === userId);
-    if (!user) throw new Error('User not found.');
-
-    if (input.name && input.name.trim()) {
-      user.name = input.name.trim();
-    }
-    if (input.phoneNumber && input.phoneNumber.trim()) {
-      user.phoneNumber = input.phoneNumber.trim();
-      user.phoneVerified = false; // Requires re-verification on number change
-    }
-    user.updatedAt = new Date().toISOString();
-
-    await this.recordAudit({
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: user.role,
-      businessId: user.businessId,
-      action: 'PROFILE_UPDATED',
-      entityType: 'USER',
-      entityId: user.id,
-      details: `User updated profile contact information.`,
-    });
-
-    const { passwordHash, ...safeUser } = user;
-    return safeUser;
-  }
-
-  async changePassword(userId: string, currentPass: string, newPass: string): Promise<{ success: boolean; message: string }> {
-    const user = users.find((u) => u.id === userId);
-    if (!user) throw new Error('User not found.');
-
-    if (user.passwordHash !== currentPass) {
-      throw new Error('Incorrect current password.');
-    }
-
-    if (newPass.length < 8) {
-      throw new Error('New password must be at least 8 characters.');
-    }
-
-    user.passwordHash = newPass;
-    user.updatedAt = new Date().toISOString();
-
-    await this.recordAudit({
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: user.role,
-      businessId: user.businessId,
-      action: 'PASSWORD_CHANGED',
-      entityType: 'USER',
-      entityId: user.id,
-      details: `User successfully changed account password.`,
-    });
-
-    return { success: true, message: 'Password updated successfully.' };
-  }
-
-  // --- Executive Reports & Analytics Aggregation ---
-  async getAnalyticsReport(businessId?: string, actor?: User): Promise<any> {
-    const targetBizId = businessId || actor?.businessId || 'biz_apex_supply';
-    const bizDispatches = dispatches.filter(
-      (d) => actor?.role === 'SUPER_ADMIN' || d.senderBusinessId === targetBizId || d.partnerId === actor?.partnerId
-    );
-
-    const totalDispatches = bizDispatches.length;
-    const deliveredDispatches = bizDispatches.filter((d) => ['RECEIVED', 'RECONCILED'].includes(d.status)).length;
-    const inTransitDispatches = bizDispatches.filter((d) => ['IN_TRANSIT', 'DISPATCHED', 'VIEWED'].includes(d.status)).length;
-    const discrepancyDispatches = bizDispatches.filter((d) => d.status === 'PARTIALLY_RECEIVED' || (d.discrepancyCases && d.discrepancyCases.length > 0)).length;
-
-    let totalDispatchedVolume = 0;
-    let totalReceivedVolume = 0;
-    let totalLostVolume = 0;
-    let totalCargoValue = 0;
-
-    for (const d of bizDispatches) {
-      totalDispatchedVolume += d.totalQuantityDispatched || 0;
-      totalReceivedVolume += d.totalQuantityReceived || 0;
-      totalLostVolume += d.totalQuantityLost || 0;
-      for (const line of d.lines) {
-        totalCargoValue += (line.quantitySent || 0) * (line.unitPrice || 25);
-      }
-    }
-
-    const deliverySuccessRate = totalDispatches > 0 ? Math.round((deliveredDispatches / totalDispatches) * 100) : 100;
-    const discrepancyRate = totalDispatches > 0 ? Math.round((discrepancyDispatches / totalDispatches) * 100) : 0;
-
-    // Discrepancy Breakdown
-    const discrepancyBreakdown = {
-      shortage: 0,
-      damaged: 0,
-      lost: 0,
-      overage: 0,
-      countMismatch: 0,
-    };
-
-    for (const d of bizDispatches) {
-      for (const c of d.discrepancyCases || []) {
-        if (c.type === 'SHORTAGE') discrepancyBreakdown.shortage += c.shortfallQuantity;
-        else if (c.type === 'DAMAGED') discrepancyBreakdown.damaged += c.shortfallQuantity;
-        else if (c.type === 'LOST') discrepancyBreakdown.lost += c.shortfallQuantity;
-        else if (c.type === 'OVERAGE') discrepancyBreakdown.overage += c.shortfallQuantity;
-        else discrepancyBreakdown.countMismatch += c.shortfallQuantity;
-      }
-    }
-
-    // Partner Performance Table
-    const partnerStatsMap: Record<string, { partnerName: string; totalDispatches: number; successful: number; discrepancies: number; totalVolume: number }> = {};
-    for (const d of bizDispatches) {
-      if (!partnerStatsMap[d.partnerId]) {
-        partnerStatsMap[d.partnerId] = {
-          partnerName: d.partnerName,
-          totalDispatches: 0,
-          successful: 0,
-          discrepancies: 0,
-          totalVolume: 0,
-        };
-      }
-      partnerStatsMap[d.partnerId].totalDispatches += 1;
-      partnerStatsMap[d.partnerId].totalVolume += d.totalQuantityDispatched || 0;
-      if (['RECEIVED', 'RECONCILED'].includes(d.status)) {
-        partnerStatsMap[d.partnerId].successful += 1;
-      }
-      if (d.status === 'PARTIALLY_RECEIVED' || (d.discrepancyCases && d.discrepancyCases.length > 0)) {
-        partnerStatsMap[d.partnerId].discrepancies += 1;
-      }
-    }
-
-    const partnerPerformance = Object.values(partnerStatsMap).map((p) => ({
-      ...p,
-      successRate: Math.round((p.successful / p.totalDispatches) * 100),
-    }));
-
-    if (actor) {
-      await this.recordAudit({
-        actorId: actor.id,
-        actorName: actor.name,
-        actorRole: actor.role,
-        businessId: targetBizId,
-        action: 'REPORT_GENERATED',
-        entityType: 'BUSINESS',
-        entityId: targetBizId,
-        details: `Executive Analytics and Reconciliation Report generated by ${actor.name}.`,
-      });
-    }
-
-    return {
-      businessId: targetBizId,
-      generatedAt: new Date().toISOString(),
-      summary: {
-        totalDispatches,
-        deliveredDispatches,
-        inTransitDispatches,
-        discrepancyDispatches,
-        totalDispatchedVolume,
-        totalReceivedVolume,
-        totalLostVolume,
-        totalCargoValue,
-        deliverySuccessRate,
-        discrepancyRate,
-      },
-      discrepancyBreakdown,
-      partnerPerformance,
     };
   }
 }
