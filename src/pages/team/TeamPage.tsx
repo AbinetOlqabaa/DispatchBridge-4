@@ -212,7 +212,7 @@ export function TeamPage() {
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-2 transition cursor-pointer"
           >
             <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
-            Accept Token
+            {t('action.accept_token', 'Accept Token')}
           </button>
           {canManage && (
             <button
@@ -220,7 +220,7 @@ export function TeamPage() {
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm transition cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
-              Invite Member
+              {t('action.invite_member', 'Invite Member')}
             </button>
           )}
           <button
@@ -236,23 +236,23 @@ export function TeamPage() {
       {/* Metrics Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs text-slate-400 font-medium">Total Members</p>
+          <p className="text-xs text-slate-400 font-medium">{t('metric.total_members', 'Total Members')}</p>
           <p className="text-2xl font-bold text-white mt-1">{members.length}</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs text-slate-400 font-medium">Senders / Dispatchers</p>
+          <p className="text-xs text-slate-400 font-medium">{t('role.sender', 'Senders / Dispatchers')}</p>
           <p className="text-2xl font-bold text-blue-400 mt-1">
             {members.filter((m) => m.membershipRole === 'SENDER').length}
           </p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs text-slate-400 font-medium">Receiving Leads</p>
+          <p className="text-xs text-slate-400 font-medium">{t('role.receiver', 'Receiving Leads')}</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">
             {members.filter((m) => m.membershipRole === 'RECEIVER').length}
           </p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs text-slate-400 font-medium">Pending Invitations</p>
+          <p className="text-xs text-slate-400 font-medium">{t('metric.pending_invitations', 'Pending Invitations')}</p>
           <p className="text-2xl font-bold text-amber-400 mt-1">
             {invitations.filter((i) => i.status === 'PENDING').length}
           </p>
@@ -270,7 +270,7 @@ export function TeamPage() {
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
             }`}
           >
-            Active Members ({members.length})
+            {t('metric.active_members', 'Active Members')} ({members.length})
           </button>
           <button
             onClick={() => setActiveTab('invitations')}
@@ -280,7 +280,7 @@ export function TeamPage() {
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
             }`}
           >
-            Invitations
+            {t('metric.pending_invitations', 'Invitations')}
             {invitations.filter((i) => i.status === 'PENDING').length > 0 && (
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             )}
@@ -292,7 +292,7 @@ export function TeamPage() {
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search by name, email, phone..."
+            placeholder={`${t('action.search')}...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
@@ -322,15 +322,15 @@ export function TeamPage() {
           </div>
         ) : (
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                    <th className="py-3 px-4 font-semibold">Member</th>
-                    <th className="py-3 px-4 font-semibold">Assigned Role</th>
-                    <th className="py-3 px-4 font-semibold">Contact Details</th>
-                    <th className="py-3 px-4 font-semibold">Status</th>
-                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                    <th className="py-3 px-4 font-semibold">{t('table.member', 'Member')}</th>
+                    <th className="py-3 px-4 font-semibold">{t('auth.assigned_role', 'Assigned Role')}</th>
+                    <th className="py-3 px-4 font-semibold">{t('table.contact', 'Contact Details')}</th>
+                    <th className="py-3 px-4 font-semibold">{t('table.status', 'Status')}</th>
+                    <th className="py-3 px-4 font-semibold text-right">{t('table.actions', 'Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">

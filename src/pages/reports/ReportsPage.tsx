@@ -237,7 +237,7 @@ export function ReportsPage() {
             className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
-            Export PDF
+            {t('action.export_pdf', 'Export PDF')}
           </button>
 
           <button
@@ -246,7 +246,7 @@ export function ReportsPage() {
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             <FileText className="w-3.5 h-3.5 text-indigo-400" />
-            Export CSV
+            {t('action.export_csv', 'Export CSV')}
           </button>
 
           <button
@@ -274,37 +274,37 @@ export function ReportsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Total Dispatches</span>
+                <span>{t('metric.total_dispatches', 'Total Dispatches')}</span>
                 <Truck className="w-4 h-4 text-indigo-400" />
               </div>
               <p className="text-2xl font-bold text-white mt-1">
                 {reportData.summary.totalDispatches}
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {reportData.summary.inTransitDispatches} currently in transit
+                {reportData.summary.inTransitDispatches} {t('metric.manifests_active')}
               </p>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Fulfillment Success</span>
+                <span>{t('metric.fulfillment_success', 'Fulfillment Success')}</span>
                 <Percent className="w-4 h-4 text-emerald-400" />
               </div>
               <p className="text-2xl font-bold text-emerald-400 mt-1">
                 {reportData.summary.deliverySuccessRate}%
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {reportData.summary.deliveredDispatches} verified receipts
+                {reportData.summary.deliveredDispatches} {t('metric.verified_receipts', 'verified receipts')}
               </p>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>Cargo Losses / Shortfalls</span>
+                <span>{t('metric.recorded_losses', 'Cargo Losses / Shortfalls')}</span>
                 <ShieldAlert className="w-4 h-4 text-amber-400" />
               </div>
               <p className="text-2xl font-bold text-amber-400 mt-1">
-                {reportData.summary.totalLostVolume.toLocaleString()} <span className="text-xs font-normal text-slate-400">units</span>
+                {reportData.summary.totalLostVolume.toLocaleString()} <span className="text-xs font-normal text-slate-400">{t('unit.units')}</span>
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {reportData.summary.discrepancyDispatches} discrepancy incidents

@@ -182,7 +182,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
               <div className="fixed inset-0 z-20" onClick={() => setShowBusinessDropdown(false)} />
               <div className="absolute left-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-30">
                 <div className="px-3 py-2 border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                  <span>Switch Business Entity</span>
+                  <span>{t('action.switch_entity', 'Switch Business Entity')}</span>
                   {isSwitching && <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />}
                 </div>
                 <div className="py-1 max-h-56 overflow-y-auto divide-y divide-slate-800/40 scrollbar-thin">
@@ -233,7 +233,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 hover:text-white hover:bg-indigo-900/40 border border-indigo-900/60 transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Register New Business Entity</span>
+                    <span>{t('action.register_new_entity', 'Register New Business Entity')}</span>
                   </button>
                 </div>
               </div>
@@ -260,7 +260,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
             <Truck className="w-4 h-4 text-sky-400" />
           </div>
           <div className="text-2xl font-bold text-white">{activeDispatches}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Out of {totalDispatches} {t('metric.total_dispatches')}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{t('metric.out_of_total', 'Out of {total} dispatches', { total: totalDispatches })}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
@@ -269,7 +269,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
             <Package className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-2xl font-bold text-white">{totalItemsSent.toLocaleString()}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Across all manifests</div>
+          <div className="text-[11px] text-slate-500 mt-1">{t('metric.across_all_manifests', 'Across all manifests')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
@@ -278,7 +278,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
             <AlertTriangle className="w-4 h-4 text-rose-400" />
           </div>
           <div className="text-2xl font-bold text-rose-400">{totalItemsLost.toLocaleString()}</div>
-          <div className="text-[11px] text-rose-400/80 mt-1">Requiring credit notes / audit</div>
+          <div className="text-[11px] text-rose-400/80 mt-1">{t('metric.requiring_audit', 'Requiring credit notes / audit')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
@@ -287,7 +287,7 @@ export const BusinessOwnerDashboard: React.FC<BusinessOwnerDashboardProps> = ({
             <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-bold text-emerald-400">{reconciliationRate}%</div>
-          <div className="text-[11px] text-emerald-400/80 mt-1">Fulfilled to receiving partner</div>
+          <div className="text-[11px] text-emerald-400/80 mt-1">{t('metric.fulfilled_to_partner', 'Fulfilled to receiving partner')}</div>
         </div>
       </div>
 

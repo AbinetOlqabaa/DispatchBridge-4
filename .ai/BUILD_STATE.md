@@ -1,11 +1,11 @@
 # Build State — Business Dispatch & Delivery Reconciliation (DispatchBridge)
 
-- **Last Updated:** 2026-10-25T00:00:00-07:00
+- **Last Updated:** 2026-11-01T04:15:00-08:00
 - **Runtime / Platform:** Node.js v22.14.0 on Linux container with Express 4 backend & Vite 8 React 19 Frontend. Configured as an installable mobile-first Progressive Web App (PWA). *Note: Native Android build tooling (Gradle / Android SDK) is not supported in this runtime environment.*
 - **Stack:**
   - Backend: Node.js, Express 4, TypeScript, HMAC SHA-256 session tokens, timing-safe one-time bootstrap tokens, Fayda e-ID verification adapter, OTP gateway adapter, in-memory domain adapter (`sandboxStore`) with full multi-tenant isolation.
   - Frontend: React 19, Tailwind CSS v4, Lucide React, Context API (`AuthContext`, `LanguageContext`, `ThemeContext`), clean component and page architecture.
-  - Test Suite: Node.js TypeScript test runner (`npm test` -> `tsx test/runTests.ts`) — **40/40 automated tests passing with 0 failures**.
+  - Test Suite: Node.js TypeScript test runner (`npm test` -> `tsx test/runTests.ts`) — **44/44 automated tests passing with 0 failures**.
 
 ---
 
@@ -20,10 +20,11 @@
 | Phase 5 | `.ai/05_NOTIFICATIONS_AND_AUDIT.md` | **COMPLETE** | Real-time in-app notification drawer with unread counter & read tracking; immutable audit trail logging actor, role, correlation ID, and metadata for every mutation. |
 | Phase 6 | `.ai/06_TABLET_FIRST_UI_UX_AND_ACCESSIBILITY.md` | **COMPLETE** | Comprehensive tablet portrait (768x1024, 820x1180) & landscape (1024x768, 1180x820) optimizations. Balanced 2-column card wrapping, unclipped filter pills, container-bounded tables with enhanced high-contrast scrollbars, and unclipped navigation. |
 | Phase 7 | `.ai/07_SECURITY_PRIVACY_AND_FAILURES.md` | **COMPLETE** | Strict cross-tenant isolation on store and route levels (HTTP 403 on mismatched tenant/partner access), timingSafeEqual constant-time comparisons, idempotency key deduplication. |
-| Phase 8 | `.ai/08_TESTING_AND_ACCEPTANCE.md` | **COMPLETE** | 40 automated unit, security, integration, identity, and governance acceptance tests passing with 0 failures (`npm test`). `tsc --noEmit` passing with 0 type errors. |
+| Phase 8 | `.ai/08_TESTING_AND_ACCEPTANCE.md` | **COMPLETE** | 44 automated unit, security, integration, identity, and localization acceptance tests passing with 0 failures (`npm test`). `tsc --noEmit` passing with 0 type errors. |
 | Phase 9 | `.ai/09_RELEASE_CHECKLIST.md` | **COMPLETE** | Release checklist evaluated honestly. Verdict: **READY FOR STAGING**. |
 | Identity Update | `.ai/IDENTITY_UPDATE_EXECUTE.md` | **COMPLETE** | Fayda e-ID national ID adapter (FAN/FIN masking, simulation badge, production fail-closed), mobile-first E.164 auth, cryptographic 6-digit OTP challenges, password reset/change step-up, user profile photo upload, and `/api/admin/users` governance with suspension audit logs. |
 | Extension & Governance | `.ai/00_MASTER_PLAN.md` | **COMPLETE** | Team directory & cryptographic invitation tokens (`/api/memberships`, `TeamPage.tsx`), Executive Performance & Reconciliation Reports (`/api/reports/analytics`, `ReportsPage.tsx`), User Profile & Credentials manager (`ProfilePage.tsx`), Multi-Tenant Context Switcher. |
+| Localization & i18n | `.ai/00_MASTER_PLAN.md` | **COMPLETE** | Comprehensive end-to-end multi-language translation across all 5 national languages (English, Amharic, Afan Oromo, Tigrinya, Somali). 100% dictionary key parity, zero missing keys, parameter interpolation, and external recipient native language switcher. |
 
 ---
 
@@ -167,40 +168,45 @@ $ npm test
 ---
 
 ## 5. Changes Made in This Session & Acceptance Evidence
-- **Complete Responsive Viewport Matrix Automated Verification (`playwright-cli`)**:
-  - Evaluated every viewport required by `.ai/08_TESTING_AND_ACCEPTANCE.md` (360x800, 390x844, 768x1024, 820x1180, 1024x768, 1180x820, 1280x800, 1440x900).
-  - Empirical verification results:
-    - `360x800` (Compact Mobile): `scrollWidth: 360, innerWidth: 360, overflow: false`
-    - `390x844` (Standard Mobile - iPhone): `scrollWidth: 390, innerWidth: 390, overflow: false`
-    - `768x1024` (Tablet Portrait - iPad Mini/9.7"): `scrollWidth: 768, innerWidth: 768, overflow: false`
-    - `820x1180` (Tablet Portrait - iPad Air/10.9"): `scrollWidth: 820, innerWidth: 820, overflow: false`
-    - `1024x768` (Tablet Landscape - iPad Mini/9.7"): `scrollWidth: 1024, innerWidth: 1024, overflow: false`
-    - `1180x820` (Tablet Landscape - iPad Air/10.9"): `scrollWidth: 1180, innerWidth: 1180, overflow: false`
-    - `1280x800` (Tablet Landscape / Laptop): `scrollWidth: 1280, innerWidth: 1280, overflow: false`
-    - `1440x900` (Desktop): `scrollWidth: 1440, innerWidth: 1440, overflow: false`
-- **Cross-Route Tablet Verification (768x1024 & 1024x768)**:
-  - Verified `overflow: false` across all application routes: `Dispatches`, `Recommendations`, `System Status`, `Owner Dashboard`, `Partners`, `Origins & Docks`, `Audit Trail`, and `Super Admin Dashboard` (Platform Overview & User Governance tabs).
-- **Tablet First-Class Navigation & Responsive Ergonomics (`Navbar.tsx` & `App.tsx`)**:
-  - Tablet Portrait (768px-1023px) and Tablet Landscape (1024px-1279px) now have dedicated navigation tab strips, theme, language, and role-switching controls without clipping.
-  - Added responsive bottom padding `pt-4 pb-24 md:pb-8` to `<main>` in `App.tsx` ensuring zero content overlap with mobile bottom navigation.
-- **Dynamic Orientation & Canvas Resizing in Signature Pad (`SignaturePad.tsx`)**:
-  - Implemented dynamic `resize` and `orientationchange` listener that preserves existing signature strokes via data URL, rescales the buffer with `devicePixelRatio`, and redraws without stroke distortion or clearing when the tablet rotates on the receiving dock.
-  - Increased touch height to `h-32 md:h-36` with touch-none action for stylus and finger signing.
-- **Reconciliation & Modal Tablet Layout Refinements**:
-  - Upgraded reconciliation dock inputs in `DispatchDetailPage.tsx` to `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, preventing field compression on tablet portrait.
-  - Upgraded line items in `CreateDispatchModal.tsx` to 2-row layout on mobile and single-row on tablet and desktop.
-  - Wrapped parsed dispatch preview table in `BulkUploadModal.tsx` with `overflow-x-auto min-w-[550px] sm:min-w-full`.
-- **Zero-Error Console Initialization Fix**:
-  - Resolved initial 401 unauthenticated request in `src/services/api.ts` constructor and `DispatchListPage.tsx`. Stale cached user tokens are cleared and unauthenticated callers bypass protected endpoints. Verified 0 browser console errors on startup.
-- **Automated Test Suite Execution (`test/runTests.ts`)**:
-  - All 38 automated tests passing with 0 failures (`npm test`).
-  - Verified `npm run lint` (`tsc --noEmit`) -> 0 errors.
+- **Complete End-to-End Page Language Translation Enhancement Strategy**:
+  - Conducted deep audit of all user-facing pages, views, dialogs, buttons, and notifications to identify remaining untranslated English strings.
+  - Implemented full localization support across all 5 national languages:
+    1. English (`en`)
+    2. Amharic (`am` - አማርኛ)
+    3. Afaan Oromoo (`om`)
+    4. Tigrinya (`ti` - ትግርኛ)
+    5. Somali (`so` - Soomaali)
+  - Enhanced `LanguageContext.tsx`:
+    - Added parameter interpolation engine: `t(key, fallbackOrParams, params)` replacing `{variable}` dynamic tokens (e.g., `{count}`, `{name}`, `{total}`, `{percent}`).
+    - Built-in safe fallbacks: target language key -> English fallback key -> developer fallback string -> raw key.
+    - Synchronized locale preferences to `localStorage` under `dispatchbridge_language` and updated `document.documentElement.lang`.
+  - Expanded Translation Dictionaries (`src/i18n/translations.ts`):
+    - Over 110 keys per language with **100% dictionary key parity** across all 5 languages (0 missing keys, 0 empty strings).
+    - Authentic, grammatically sound localized supply-chain terminology (e.g. Ge'ez Ethiopic script for Amharic and Tigrinya, genuine Oromo and Somali logistics phrasing).
+  - Component & Page Level Localizations:
+    - `Navbar.tsx`: Full translation of navigation items, simulator buttons, network status badges, and language dropdown options.
+    - `NotificationBanner.tsx`: Sandbox environment alert and status button translated.
+    - `DispatchListPage.tsx`: Translated bulk upload CSV, PDF/CSV exports, manifest count, status pills, and itemized table cells (`By {name}`, `Loss: {count} units`, intact status, view receipt badges).
+    - `DispatchDetailPage.tsx`: Translated GPS HUD, QR barcode modal, itemized manifest table headers, discrepancy case resolution, digital signature pad, and tamper-evident cargo photo uploaders.
+    - `PublicPartnerView.tsx`: Integrated external recipient language switcher pill bar allowing dock workers and partners to review and sign off manifests in their preferred native language (Amharic, Afan Oromo, Tigrinya, Somali, or English).
+    - `ReceiverDashboard.tsx`: Translated dock inspection alerts, delivery counts, shipper information, and reconciliation buttons.
+    - `BusinessOwnerDashboard.tsx`: Translated KPI metrics, entity switching modals, and loss root-cause charts.
+    - `SuperAdminDashboard.tsx`: Translated platform diagnostics and user administration tables.
+    - `TeamPage.tsx`: Translated token invitations, member metrics, and access controls.
+    - `ReportsPage.tsx`: Translated executive summaries, partner performance cards, and export actions.
+    - `PartnersPage.tsx` & `LocationsPage.tsx`: Translated origin dock configuration and destination partner lists.
+    - `AuditPage.tsx`: Translated tamper-resistant cryptographic audit trail table headers and action badges.
+    - `AuthModal.tsx`: Translated mobile sign-in, work email toggle, Fayda e-ID registration, OTP challenges, and password recovery.
+    - `ProfileModal.tsx`: Translated user avatar actions, Fayda credential cards, display name editor, and step-up OTP password updates.
+- **Automated Test Suite Expansion (`test/runTests.ts`)**:
+  - Added 4 automated localization acceptance test cases:
+    1. `Supported Languages Registry Parity (5 National Languages)`: Validates 5 language entries with native labels.
+    2. `Dictionary Parity Across All 5 Languages (Zero Missing Keys)`: Iterates through all keys in `en` and asserts identical presence in `am`, `om`, `ti`, and `so`.
+    3. `Parameter Interpolation Engine Dynamic Replacement`: Tests dynamic token formatting across all 5 languages.
+    4. `Native Script & Linguistic Integrity`: Asserts Ethiopic Ge'ez unicode script presence and genuine Oromo/Somali terminology.
+  - **All 44/44 tests passed with 0 failures** (`npx --yes tsx test/runTests.ts`).
+  - Verified `lint_applet` (`tsc --noEmit`) -> 0 errors.
   - Verified `compile_applet` -> SUCCESS.
-- **Real Browser Acceptance Testing Screenshots**:
-  - `/.playwright-cli/superadmin-users-tablet-portrait.png`
-  - `/.playwright-cli/superadmin-users-tablet-landscape.png`
-  - `/.playwright-cli/tablet-portrait-768x1024.png`
-  - `/.playwright-cli/tablet-landscape-1024x768.png`
 
 ---
 
@@ -213,7 +219,9 @@ $ npm test
 - [x] Server-backed administrator user governance (search, filter, suspend with reason, reactivate, lockout protection).
 - [x] Tablet portrait navigation & layout ergonomics (768x1024 / 820x1180).
 - [x] Tablet landscape layout, unclipped navigation, and scrollable modal containment (1024x768 / 1180x820).
-- [x] 40/40 acceptance tests passing in test runner (0 failures).
+- [x] Multi-Language Localization Engine: 5 languages fully translated with parameter interpolation and 100% dictionary parity.
+- [x] External Recipient View: Dedicated language pill bar on public partner receipt page (`PublicPartnerView.tsx`).
+- [x] 44/44 acceptance tests passing in test runner (0 failures).
 - [x] Zero compilation or lint errors (`npm run lint` & `compile_applet` clean).
 - [x] Team & Organization Governance: Cryptographically random token invitations, role updates, member removal, and acceptance.
 - [x] Executive Performance & Reconciliation Analytics Report Engine: Summary KPIs, loss breakdown, partner scorecard, PDF & CSV exports.

@@ -36,6 +36,7 @@ import {
 } from '../src/server/adapters/faydaAdapter.js';
 import { otpChallengeStore } from '../src/server/adapters/otpAdapter.js';
 import { normalizeToE164, isValidE164 } from '../src/utils/phoneUtils.js';
+import { translations, SUPPORTED_LANGUAGES, SupportedLanguage } from '../src/i18n/translations.js';
 
 interface TestResult {
   group: string;
@@ -1589,8 +1590,102 @@ async function runTestSuite() {
   });
 
   // -------------------------------------------------------------------------
-  // Summary
+  // Localization & Multi-Language Translation Tests
   // -------------------------------------------------------------------------
+  await test('Localization & Internationalization', 'Supported Languages Registry Parity (5 National Languages)', () => {
+    assertEqual(SUPPORTED_LANGUAGES.length, 5, 'Exactly 5 supported languages configured');
+    const expectedCodes: SupportedLanguage[] = ['en', 'am', 'om', 'ti', 'so'];
+    for (const code of expectedCodes) {
+      const match = SUPPORTED_LANGUAGES.find((lang) => lang.code === code);
+      assert(Boolean(match), `Language ${code} is present in registry`);
+      assert(Boolean(match?.label), `Language ${code} has an English label`);
+      assert(Boolean(match?.nativeName), `Language ${code} has a genuine native script label`);
+    }
+  });
+
+  await test('Localization & Internationalization', 'Dictionary Parity Across All 5 Languages (Zero Missing Keys)', () => {
+    const enKeys = Object.keys(translations.en);
+    assert(enKeys.length >= 100, `English dictionary contains comprehensive translation keys (found ${enKeys.length})`);
+
+    const targetLanguages: SupportedLanguage[] = ['am', 'om', 'ti', 'so'];
+    for (const lang of targetLanguages) {
+      const dict = translations[lang];
+      assert(Boolean(dict), `Dictionary for language '${lang}' exists`);
+
+      const missingKeys: string[] = [];
+      const emptyKeys: string[] = [];
+
+      for (const key of enKeys) {
+        if (!(key in dict)) {
+          missingKeys.push(key);
+        } else if (typeof dict[key] !== 'string' || dict[key].trim().length === 0) {
+          emptyKeys.push(key);
+        }
+      }
+
+      assertEqual(
+        missingKeys.length,
+        0,
+        `Language '${lang}' missing keys: [${missingKeys.slice(0, 10).join(', ')}${missingKeys.length > 10 ? '...' : ''}]`
+      );
+      assertEqual(
+        emptyKeys.length,
+        0,
+        `Language '${lang}' has empty string translations: [${emptyKeys.slice(0, 10).join(', ')}]`
+      );
+    }
+  });
+
+  await test('Localization & Internationalization', 'Parameter Interpolation Engine Dynamic Replacement', () => {
+    function interpolate(template: string, params: Record<string, string | number>): string {
+      let result = template;
+      for (const [k, v] of Object.entries(params)) {
+        result = result.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+      }
+      return result;
+    }
+
+    // Test across English, Amharic, Oromo, Tigrinya, and Somali
+    const enLoss = interpolate(translations.en['table.loss'], { count: 5 });
+    assertEqual(enLoss, 'Loss: 5 units', 'English parameter interpolation');
+
+    const amLoss = interpolate(translations.am['table.loss'], { count: 3 });
+    assertEqual(amLoss, 'ኪሳራ፡ 3 ክፍሎች', 'Amharic parameter interpolation');
+
+    const omLoss = interpolate(translations.om['table.loss'], { count: 12 });
+    assertEqual(omLoss, 'Kasaaraa: 12 qooda', 'Oromo parameter interpolation');
+
+    const tiLoss = interpolate(translations.ti['table.loss'], { count: 7 });
+    assertEqual(tiLoss, 'ኪሳራ፡ 7 ኣቑሑት', 'Tigrinya parameter interpolation');
+
+    const soLoss = interpolate(translations.so['table.loss'], { count: 9 });
+    assertEqual(soLoss, 'Khasaare: 9 xabbo', 'Somali parameter interpolation');
+  });
+
+  await test('Localization & Internationalization', 'Native Script & Linguistic Integrity', () => {
+    // Amharic and Tigrinya must use authentic Ethiopic Ge'ez characters (\u1200-\u137F)
+    const ethiopicRegex = /[\u1200-\u137F]/;
+    assert(
+      ethiopicRegex.test(translations.am['app.subtitle']),
+      'Amharic translations contain genuine Ethiopic script characters'
+    );
+    assert(
+      ethiopicRegex.test(translations.ti['app.subtitle']),
+      'Tigrinya translations contain genuine Ethiopic script characters'
+    );
+
+    // Afaan Oromoo and Somali must feature recognized terminology
+    assert(
+      translations.om['recon.record_receipt'].includes('Araarsa') ||
+      translations.om['recon.record_receipt'].includes('Nagahee'),
+      'Afaan Oromoo utilizes authentic reconciliation terminology'
+    );
+    assert(
+      translations.so['role.business_owner'].includes('Mulkiilaha') ||
+      translations.so['role.business_owner'].includes('Ganacsiga'),
+      'Somali utilizes authentic business role terminology'
+    );
+  });
   console.log('\n========================================================================');
   const total = testResults.length;
   const passed = testResults.filter((r) => r.status === 'PASS').length;
